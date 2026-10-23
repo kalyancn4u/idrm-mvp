@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import empty_state, pager, page_head %}
+{% block title %}Organizations{% endblock %}
+{% block breadcrumb %}Organizations{% endblock %}
+
+{% block content %}
+{{ page_head("Organizations", total ~ " total") }}
+
+<form class="filter-bar card" method="get">
+  <div class="filter-grid">
+    <div class="form-group"><label class="form-label" for="q">Search</label>
+      <input id="q" name="q" type="text" value="{{ q }}"></div>
+    <div class="form-group"><label class="form-label" for="verified">Verification</label>
+      <select id="verified" name="verified">
+        <option value="" {{ 'selected' if verified == '' }}>All</option>
+        <option value="1" {{ 'selected' if verified == '1' }}>Verified</option>
+        <option value="0" {{ 'selected' if verified == '0' }}>Unverified</option>
+      </select></div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-ghost" href="{{ url_for('organizations.list_view') }}">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Type</th><th>Services</th><th>Capacity</th><th>Verified</th><th></th></tr></thead>
+        <tbody>
+          {% for o in rows %}
+            <tr>
+              <td><strong>{{ o.name }}</strong></td>
+              <td>{{ o.type.value if o.type.value is defined else o.type }}</td>
+              <td>
+                {% for s in o.service_categories %}
+                  <span class="type-tag">{{ s.value if s.value is defined else s }}</span>
+                {% endfor %}
+              </td>
+              <td class="num">{{ o.available_capacity }} / {{ o.capacity }}</td>
+              <td>
+                {% if o.is_verified %}<span class="badge badge-success">verified</span>
+                {% else %}<span class="badge badge-warning">pending</span>{% endif %}
+              </td>
+              <td>
+                {% if o.is_verified %}
+                  <form method="post" action="{{ url_for('organizations.unverify', org_id=o.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-ghost btn-sm" type="submit">Unverify</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="{{ url_for('organizations.verify', org_id=o.id) }}" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-primary btn-sm" type="submit">Verify</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'organizations.list_view', q=q, verified=verified) }}
+  {% else %}
+    {{ empty_state("◈", "No organizations match") }}
+  {% endif %}
+</div>
+{% endblock %}
+

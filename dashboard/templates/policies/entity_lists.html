@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, empty_state, page_head %}
+{% block title %}Entity Lists{% endblock %}
+{% block breadcrumb %}Entity Lists{% endblock %}
+
+{% block content %}
+{{ page_head("Entity Lists", rows|length ~ " active entries",
+             badge='<span class="badge badge-warm">GOVERNANCE</span>') }}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Active entries</h3>
+    {% if rows %}
+      <div class="table-wrapper mt-4">
+        <table class="data-table">
+          <thead><tr><th>Type</th><th>Value</th><th>List</th><th>Effect</th><th>Reason</th></tr></thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td><span class="type-tag">{{ r.entity_type.value if r.entity_type.value is defined else r.entity_type }}</span></td>
+                <td><code>{{ r.entity_value }}</code></td>
+                <td><span class="badge badge-{{ 'error' if (r.list_type.value if r.list_type.value is defined else r.list_type) == 'blocklist' else 'success' }}">{{ r.list_type.value if r.list_type.value is defined else r.list_type }}</span></td>
+                <td>{{ r.effect.value if r.effect.value is defined else r.effect }}</td>
+                <td class="text-small">{{ r.reason or '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ empty_state("☰", "No list entries yet") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Add an entry</h3>
+    <form method="post" action="{{ url_for('policies.create_entity_list') }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label required" for="entity_type">Entity type</label>
+        <select id="entity_type" name="entity_type" required>
+          {% for t in ['email','phone','ip_address','user_id','device_fingerprint','organization_id'] %}
+            <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label required" for="entity_value">Value</label>
+        <input id="entity_value" name="entity_value" type="text" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label required" for="list_type">List type</label>
+        <select id="list_type" name="list_type" required>
+          <option value="blocklist">Blocklist</option>
+          <option value="allowlist">Allowlist</option>
+          <option value="watchlist">Watchlist</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label required" for="effect">Effect</label>
+        <select id="effect" name="effect" required>
+          <option value="hard_block">Hard block</option>
+          <option value="soft_block">Soft block</option>
+          <option value="allow_override">Allow override</option>
+          <option value="observe">Observe</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="reason">Reason</label>
+        <input id="reason" name="reason" type="text">
+      </div>
+      <button class="btn btn-primary" type="submit">Add entry</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+

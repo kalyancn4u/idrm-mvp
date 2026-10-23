@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state %}
+{% block title %}{{ org.name }}{% endblock %}
+{% block breadcrumb %}Organizations / {{ org.name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="flex gap-4 items-center" style="flex-wrap:wrap;">
+    <span class="avatar lg" aria-hidden="true">{{ org.name[:1]|upper }}</span>
+    <div style="flex:1; min-width:240px;">
+      <h1>{{ org.name }}</h1>
+      <div class="flex gap-2 items-center mt-2" style="flex-wrap:wrap;">
+        <span class="type-tag">{{ org.type.value if org.type.value is defined else org.type }}</span>
+        {% if org.is_verified %}
+          <span class="badge badge-success">verified</span>
+        {% else %}
+          <span class="badge badge-warning">pending verification</span>
+        {% endif %}
+        {% if org.is_available %}
+          <span class="badge badge-info">available</span>
+        {% else %}
+          <span class="badge badge-error">unavailable</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-3 mt-6">
+  <div class="card stat-card">
+    <span class="stat-label">Capacity</span>
+    <span class="stat-value">{{ org.available_capacity }} / {{ org.capacity }}</span>
+  </div>
+  <div class="card stat-card">
+    <span class="stat-label">Service radius</span>
+    <span class="stat-value">{{ org.service_radius_km }} km</span>
+  </div>
+  <div class="card stat-card">
+    <span class="stat-label">Completed</span>
+    <span class="stat-value">{{ org.total_requests_completed }}</span>
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h4>Service categories</h4>
+  {% if org.service_categories %}
+    <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
+      {% for s in org.service_categories %}
+        <span class="type-tag">{{ s.value if s.value is defined else s }}</span>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted mt-4">No service categories declared.</p>
+  {% endif %}
+</div>
+
+<div class="card mt-6">
+  <h4>Verification</h4>
+  <dl style="font-size:var(--font-size-sm); margin-top:var(--space-3); display:grid; grid-template-columns:160px 1fr; gap:var(--space-2);">
+    <dt class="text-muted">Verified</dt>
+    <dd>{% if org.is_verified %}Yes{% else %}No{% endif %}</dd>
+    <dt class="text-muted">Verified at</dt>
+    <dd>{{ reltime(org.verified_at) }}</dd>
+    <dt class="text-muted">Contact phone</dt>
+    <dd>{{ org.contact_phone or '—' }}</dd>
+    <dt class="text-muted">Created</dt>
+    <dd>{{ reltime(org.created_at) }}</dd>
+  </dl>
+
+  <div class="flex gap-2 mt-6">
+    {% if org.is_verified %}
+      <form method="post" action="{{ url_for('organizations.unverify', org_id=org.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-ghost btn-sm" type="submit"
+                data-confirm="Unverify {{ org.name }}?">Unverify</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('organizations.verify', org_id=org.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-sm" type="submit">Verify organization</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('organizations.list_view') }}">← Back to list</a>
+  </div>
+</div>
+{% endblock %}

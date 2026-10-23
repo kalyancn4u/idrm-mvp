@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Not Found{% endblock %}
+{% block content %}
+<div class="state-container">
+  <div class="state-icon">🧭</div>
+  <div class="state-title">404 — Not found</div>
+  <div class="state-description">The resource you requested does not exist.</div>
+  <a class="btn btn-primary" href="{{ url_for('main.overview') }}">Return to overview</a>
+</div>
+{% endblock %}
+{% block anon_content %}
+<div class="login-shell">
+  <div class="login-card text-center">
+    <div class="state-icon">🧭</div>
+    <h1>404 — Not found</h1>
+    <a class="btn btn-primary mt-4" href="{{ url_for('auth.login') }}">Sign in</a>
+  </div>
+</div>
+{% endblock %}
+

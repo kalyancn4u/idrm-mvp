@@ -1,0 +1,31 @@
+[project]
+name = "idrm-mvp"
+version = "0.1.0"
+description = "Integrated Disaster Response Management — MVP modular monolith"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["app", "dashboard", "shared", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers --tb=short"
+markers = [
+    "pg: requires real PostgreSQL + PostGIS",
+    "requires_redis: requires Redis",
+    "slow: takes more than a second",
+]
+
+[tool.coverage.run]
+source = ["app", "dashboard", "shared"]
+omit = ["*/__init__.py"]

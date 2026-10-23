@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, page_head %}
+{% block title %}Inventory{% endblock %}
+{% block breadcrumb %}Logistics / Inventory{% endblock %}
+
+{% block content %}
+{{ page_head("Inventory", items|length ~ " items across " ~ locations|length ~ " locations") }}
+
+<div class="grid grid-3">
+  <div class="card">
+    <h4>Low stock</h4>
+    {% if low_stock %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for i in low_stock %}
+          <li style="padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light); display:flex; justify-content:space-between;">
+            <span>{{ i.name }}</span>
+            <strong class="text-error">{{ i.quantity }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">All items above threshold.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Expiring (30 days)</h4>
+    {% if expiring %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for i in expiring %}
+          <li style="padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            {{ i.name }} <span class="text-small">· {{ i.expires_at }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">Nothing expiring soon.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Locations</h4>
+    {% if locations %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for l in locations %}
+          <li style="padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            <strong>{{ l.name }}</strong>
+            {% if l.kind %}<span class="text-small"> · {{ l.kind }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">No locations registered.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h4>Items</h4>
+  {% if items %}
+    <div class="table-wrapper mt-4">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Kind</th><th>Quantity</th><th>Unit</th><th>Expires</th></tr></thead>
+        <tbody>
+          {% for i in items %}
+            <tr>
+              <td><strong>{{ i.name }}</strong></td>
+              <td>{{ i.kind.value if i.kind.value is defined else i.kind }}</td>
+              <td class="num">{{ i.quantity }}</td>
+              <td class="text-muted">{{ i.unit_of_measure or '—' }}</td>
+              <td class="text-muted">{{ i.expires_at or '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("▤", "No inventory items yet") }}
+  {% endif %}
+</div>
+{% endblock %}

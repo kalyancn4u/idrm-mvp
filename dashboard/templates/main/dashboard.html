@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import kpi, pri_badge, status_badge, reltime, empty_state, page_head %}
+{% block title %}Overview{% endblock %}
+{% block breadcrumb %}Overview{% endblock %}
+
+{% block content %}
+{{ page_head("Operations Overview", "Live posture across incidents, organizations and personnel.",
+             badge='<span class="badge badge-warm">CONSOLE</span>') }}
+
+<div class="kpi-grid">
+  {{ kpi("Open Incidents", kpi.incidents_open, meta=kpi.incidents_critical ~ " critical",
+         tone="critical" if kpi.incidents_critical else "emerald",
+         href=url_for('incidents.list_view', status='created')) }}
+  {{ kpi("Auto-approved", kpi.auto_approved, meta="via policy engine", tone="warm",
+         href=url_for('policies.decisions')) }}
+  {{ kpi("Personnel Available", kpi.personnel_available, meta=kpi.units_available ~ " units ready",
+         tone="emerald", href=url_for('personnel.status_overview')) }}
+  {{ kpi("Organizations", kpi.orgs_total, meta=kpi.orgs_verified ~ " verified", tone="info",
+         href=url_for('organizations.list_view')) }}
+  {{ kpi("Verified Incidents", kpi.incidents_verified, meta=kpi.incidents_total ~ " total",
+         tone="emerald", href=url_for('incidents.list_view', status='verified')) }}
+</div>
+
+<div class="grid grid-2 mt-6">
+  <div class="card">
+    <h3>Incidents by status</h3>
+    {% if by_status %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for s in by_status %}
+          <li style="display:flex; align-items:center; justify-content:space-between; padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            {{ status_badge(s.status) }}
+            <strong style="font-variant-numeric:tabular-nums;">{{ s.n }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}{{ empty_state("◌", "No data") }}{% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Incidents by service</h3>
+    {% if by_service %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for s in by_service %}
+          <li style="display:flex; align-items:center; justify-content:space-between; padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            <span class="type-tag">{{ s.service_type }}</span>
+            <strong style="font-variant-numeric:tabular-nums;">{{ s.n }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}{{ empty_state("◌", "No data") }}{% endif %}
+  </div>
+</div>
+
+<div class="grid grid-2 mt-6">
+  <div class="card">
+    <h3>Personnel status</h3>
+    {% if personnel %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for s in personnel %}
+          <li style="display:flex; align-items:center; justify-content:space-between; padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            {{ status_badge(s.status) }}
+            <strong style="font-variant-numeric:tabular-nums;">{{ s.n }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}{{ empty_state("◌", "No personnel statuses yet") }}{% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Unit status</h3>
+    {% if units %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for s in units %}
+          <li style="display:flex; align-items:center; justify-content:space-between; padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            {{ status_badge(s.status) }}
+            <strong style="font-variant-numeric:tabular-nums;">{{ s.n }}</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}{{ empty_state("◌", "No units yet") }}{% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h3>Recent activity</h3>
+  {% if recent %}
+    <ol class="timeline mt-4">
+      {% for r in recent %}
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div>
+            <p class="timeline-msg"><strong>{{ r.action }}</strong>
+              {% if r.resource_type %}· {{ r.resource_type }}{% endif %}</p>
+            <p class="text-small">{{ r.actor_id }} · {{ reltime(r.created_at) }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    {{ empty_state("◷", "No activity yet") }}
+  {% endif %}
+</div>
+{% endblock %}
+

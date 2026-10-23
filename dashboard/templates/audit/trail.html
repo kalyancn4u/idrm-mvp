@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, pager, page_head %}
+{% block title %}Audit Trail{% endblock %}
+{% block breadcrumb %}Audit Trail{% endblock %}
+
+{% block content %}
+{{ page_head("Immutable Audit Trail", total ~ " events",
+             badge='<span class="badge badge-warm">APPEND-ONLY</span>') }}
+
+<form class="filter-bar card" method="get">
+  <div class="filter-grid">
+    <div class="form-group">
+      <label class="form-label" for="action">Action</label>
+      <input id="action" name="action" type="text" value="{{ action }}" list="actions-list">
+      <datalist id="actions-list">
+        {% for a in actions %}<option value="{{ a }}">{% endfor %}
+      </datalist>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="resource_type">Resource</label>
+      <select id="resource_type" name="resource_type">
+        <option value="">All</option>
+        {% for r in resource_types %}
+          <option value="{{ r }}" {{ 'selected' if resource_type == r }}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filter</button>
+      <a class="btn btn-ghost" href="{{ url_for('audit.trail') }}">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>IP</th><th>Diff</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td class="text-muted">{{ reltime(r.created_at) }}</td>
+              <td><code>{{ r.actor_id or 'system' }}</code></td>
+              <td><strong>{{ r.action }}</strong></td>
+              <td>{{ r.resource_type }}{% if r.resource_id %}#{{ r.resource_id|string|truncate(8, True, '') }}{% endif %}</td>
+              <td class="text-muted">{{ r.ip_address or '—' }}</td>
+              <td>
+                {% if r.old_values or r.new_values %}
+                  <details>
+                    <summary class="text-small" style="cursor:pointer;color:var(--color-primary);">view</summary>
+                    <pre style="font-size:0.68rem;margin-top:var(--space-2);">{{ (r.old_values|tojson(indent=2)) if r.old_values else '—' }}
+→
+{{ (r.new_values|tojson(indent=2)) if r.new_values else '—' }}</pre>
+                  </details>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'audit.trail', action=action, resource_type=resource_type) }}
+  {% else %}
+    {{ empty_state("◴", "No audit events match") }}
+  {% endif %}
+</div>
+{% endblock %}
+

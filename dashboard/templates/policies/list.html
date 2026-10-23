@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import empty_state, page_head %}
+{% block title %}Policies{% endblock %}
+{% block breadcrumb %}Policies{% endblock %}
+
+{% block content %}
+{{ page_head("Auto-Approval Policies", policies|length ~ " policies",
+             badge='<span class="badge badge-warm">GOVERNANCE</span>') }}
+
+<div class="card">
+  {% if policies %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>Priority</th><th>Code</th><th>Name</th><th>Applies To</th>
+          <th>Active</th><th>Caps</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for p in policies %}
+            <tr>
+              <td><strong>{{ p.priority }}</strong></td>
+              <td><code>{{ p.code }}</code></td>
+              <td>{{ p.name }}</td>
+              <td><span class="type-tag">{{ p.applies_to.value if p.applies_to.value is defined else p.applies_to }}</span></td>
+              <td>{% if p.active %}<span class="badge badge-success">active</span>{% else %}<span class="badge badge-warning">inactive</span>{% endif %}</td>
+              <td class="text-small">{{ p.caps }}</td>
+              <td>
+                <form method="post" action="{{ url_for('policies.toggle', policy_id=p.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="active" value="{{ '0' if p.active else '1' }}">
+                  <button class="btn btn-ghost btn-sm" type="submit">{{ 'Deactivate' if p.active else 'Activate' }}</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("§", "No policies configured") }}
+  {% endif %}
+</div>
+{% endblock %}
+

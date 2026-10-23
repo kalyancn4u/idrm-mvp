@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, empty_state, pager, page_head %}
+{% block title %}Users{% endblock %}
+{% block breadcrumb %}Users{% endblock %}
+
+{% block content %}
+{{ page_head("Users", total ~ " total") }}
+
+<form class="filter-bar card" method="get">
+  <div class="filter-grid">
+    <div class="form-group"><label class="form-label" for="q">Search</label>
+      <input id="q" name="q" type="text" value="{{ q }}"></div>
+    <div class="form-group"><label class="form-label" for="role">Role</label>
+      <select id="role" name="role">
+        <option value="">All</option>
+        {% for r in ['citizen','provider','coordinator','admin'] %}
+          <option value="{{ r }}" {{ 'selected' if role == r }}>{{ r }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="form-group"><label class="form-label" for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">All</option>
+        {% for s in ['pending','active','suspended','deactivated'] %}
+          <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-ghost" href="{{ url_for('users.list_view') }}">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
+        <tbody>
+          {% for u in rows %}
+            <tr>
+              <td><strong>{{ u.name }}</strong></td>
+              <td class="text-muted">{{ u.email }}</td>
+              <td><span class="type-tag">{{ u.role.value if u.role.value is defined else u.role }}</span></td>
+              <td>{{ status_badge(u.status) }}</td>
+              <td class="text-muted">{{ reltime(u.created_at) }}</td>
+              <td><a class="btn btn-ghost btn-sm" href="{{ url_for('users.detail', user_id=u.id) }}">Open →</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'users.list_view', q=q, role=role, status=status) }}
+  {% else %}
+    {{ empty_state("◎", "No users match") }}
+  {% endif %}
+</div>
+{% endblock %}
+

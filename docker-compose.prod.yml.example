@@ -1,0 +1,116 @@
+# =============================================================================
+#  IDRM MVP — production compose (reference)
+#  Copy to `docker-compose.prod.yml` and adjust before use.
+#
+#  Usage:
+#      docker compose -f docker-compose.prod.yml up -d
+# =============================================================================
+
+services:
+
+  api:
+    image: idrm:0.1.0
+    container_name: idrm-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      SESSION_COOKIE_SECURE: "1"
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://idrm_user:${POSTGRES_PASSWORD}@postgres:5432/idrm_db
+      DATABASE_URL_SYNC: postgresql+psycopg2://idrm_user:${POSTGRES_PASSWORD}@postgres:5432/idrm_db
+    command: >
+      gunicorn -w 4 -k uvicorn.workers.UvicornWorker
+        --access-logfile - --error-logfile -
+        -b 0.0.0.0:8000 app.main:app
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks: [idrm]
+    ports: ["8000:8000"]
+
+  dashboard:
+    image: idrm:0.1.0
+    container_name: idrm-dashboard
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      SESSION_COOKIE_SECURE: "1"
+      DASHBOARD_SESSION_COOKIE_SECURE: "1"
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL_SYNC: postgresql+psycopg2://idrm_user:${POSTGRES_PASSWORD}@postgres:5432/idrm_db
+    command: >
+      gunicorn -w 4 -b 0.0.0.0:5000
+        --access-logfile - --error-logfile -
+        "dashboard:create_dashboard()"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    networks: [idrm]
+    # NOT exposed publicly — the dashboard is staff-only, behind VPN or an
+    # internal load balancer.
+    # ports: ["5000:5000"]
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: idrm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: idrm_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: idrm_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - idrm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idrm_user -d idrm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [idrm]
+    # ports: ["5432:5432"]    # do NOT expose publicly
+
+  redis:
+    image: redis:7-alpine
+    container_name: idrm-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+    volumes:
+      - idrm-redisdata:/data
+    networks: [idrm]
+    # ports: ["6379:6379"]    # internal only
+
+  minio:
+    image: minio/minio:latest
+    container_name: idrm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - idrm-miniodata:/data
+    networks: [idrm]
+    # ports: ["9000:9000", "9001:9001"]    # internal only
+
+volumes:
+  idrm-pgdata:
+  idrm-redisdata:
+  idrm-miniodata:
+
+networks:
+  idrm:
+    driver: bridge

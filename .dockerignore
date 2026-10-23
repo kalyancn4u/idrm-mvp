@@ -1,0 +1,64 @@
+# ---- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---- Virtualenv --------------------------------------------------------------
+.venv/
+venv/
+env/
+
+# ---- Secrets -----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+keys/
+*.pem
+
+# ---- Testing -----------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ---- Linting / tooling -------------------------------------------------------
+.ruff_cache/
+.mypy_cache/
+.pre-commit-config.yaml
+.editorconfig
+
+# ---- Runtime -----------------------------------------------------------------
+logs/
+backups/
+exports/
+*.log
+instance/
+
+# ---- Editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- Repo metadata -----------------------------------------------------------
+.git/
+.gitignore
+.github/
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+
+# ---- Documentation -----------------------------------------------------------
+docs/
+README.md
+
+# ---- Tests (not needed at runtime) -------------------------------------------
+tests/

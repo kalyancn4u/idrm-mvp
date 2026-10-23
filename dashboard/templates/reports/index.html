@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, page_head %}
+{% block title %}Reports{% endblock %}
+{% block breadcrumb %}Reports{% endblock %}
+
+{% block content %}
+{{ page_head("Reports", "Rollup metrics — last " ~ days ~ " days") }}
+
+<div class="flex gap-2 mb-4">
+  <a class="btn btn-sm {{ 'btn-primary' if days == 7 else 'btn-outline' }}" href="?days=7">7d</a>
+  <a class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-outline' }}" href="?days=30">30d</a>
+  <a class="btn btn-sm {{ 'btn-primary' if days == 90 else 'btn-outline' }}" href="?days=90">90d</a>
+  <a class="btn btn-outline btn-sm" href="{{ url_for('reports.export_incidents') }}">⇩ Export CSV</a>
+</div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <h4>Daily created / verified</h4>
+    {% if daily %}
+      <ul style="list-style:none; margin-top:var(--space-4); font-size:var(--font-size-sm); max-height:280px; overflow-y:auto;">
+        {% for d in daily %}
+          <li style="padding:var(--space-1) 0; border-bottom:1px solid var(--color-border-light); display:flex; justify-content:space-between;">
+            <span class="text-muted">{{ d.day.strftime('%Y-%m-%d') if d.day.strftime else d.day }}</span>
+            <span><strong>{{ d.created }}</strong> / {{ d.verified }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">No data.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Average minutes to verify</h4>
+    {% if response_times %}
+      <ul style="list-style:none; margin-top:var(--space-4); font-size:var(--font-size-sm); max-height:280px; overflow-y:auto;">
+        {% for r in response_times %}
+          <li style="padding:var(--space-1) 0; border-bottom:1px solid var(--color-border-light); display:flex; justify-content:space-between;">
+            <span class="text-muted">{{ r.day.strftime('%Y-%m-%d') if r.day.strftime else r.day }}</span>
+            <strong>{{ '%.1f'|format(r.avg_minutes) if r.avg_minutes else '—' }} min</strong>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">No data.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Top organizations</h4>
+    {% if top_orgs %}
+      <ul style="list-style:none; margin-top:var(--space-4); font-size:var(--font-size-sm);">
+        {% for o in top_orgs %}
+          <li style="padding:var(--space-2) 0; border-bottom:1px solid var(--color-border-light);">
+            <strong>{{ o.name }}</strong>
+            <div class="text-small">{{ o.assigned }} assigned · {{ o.verified }} verified</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mt-4">No data.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

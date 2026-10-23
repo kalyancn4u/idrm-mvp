@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, empty_state, page_head %}
+{% block title %}Certifications{% endblock %}
+{% block breadcrumb %}Scheduling / Certifications{% endblock %}
+
+{% block content %}
+{{ page_head("Certifications", certifications|length ~ " expiring in the next 60 days") }}
+
+<div class="card">
+  {% if certifications %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>Name</th><th>Code</th><th>Holder</th>
+          <th>Issued by</th><th>Expires</th><th>Status</th>
+        </tr></thead>
+        <tbody>
+          {% for c in certifications %}
+            <tr>
+              <td><strong>{{ c.name }}</strong></td>
+              <td><code>{{ c.code }}</code></td>
+              <td><code>{{ c.user_id|string|truncate(12, True, '') }}</code></td>
+              <td class="text-muted">{{ c.issued_by or '—' }}</td>
+              <td class="text-error">{{ c.expires_at }}</td>
+              <td>{{ status_badge(c.status) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("✓", "No certifications expiring soon",
+                   "All certifications are valid for the next 60 days.") }}
+  {% endif %}
+</div>
+{% endblock %}

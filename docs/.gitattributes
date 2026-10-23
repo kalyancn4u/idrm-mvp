@@ -1,0 +1,53 @@
+# =============================================================================
+#  IDRM MVP — git attributes
+#  Normalises line endings and marks binary files.
+# =============================================================================
+
+# ---- Default: normalise line endings to LF in the repo ----------------------
+* text=auto eol=lf
+
+# ---- Explicit text types ----------------------------------------------------
+*.py       text diff=python
+*.pyi      text diff=python
+*.sql      text diff=sql
+*.sh       text eol=lf
+*.bash     text eol=lf
+*.yml      text
+*.yaml     text
+*.json     text
+*.toml     text
+*.ini      text
+*.cfg      text
+*.md       text
+*.html     text
+*.css      text
+*.js       text
+*.mako     text
+
+# ---- Makefile: tabs are significant -----------------------------------------
+Makefile   text eol=lf
+*.mk       text eol=lf
+
+# ---- Binary files -----------------------------------------------------------
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.svg      text
+*.pdf      binary
+*.woff     binary
+*.woff2    binary
+*.ttf      binary
+*.otf      binary
+
+# ---- Lock files — hide from diffs -------------------------------------------
+*.lock     -diff
+poetry.lock -diff
+
+# ---- Language statistics — vendored code doesn't count ----------------------
+.venv/**   linguist-vendored
+node_modules/** linguist-vendored
+
+# ---- GitHub: render these as specific languages -----------------------------
+*.mako     linguist-language=Python

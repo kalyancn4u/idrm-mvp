@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: idrm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: idrm_user
+      POSTGRES_PASSWORD: idrm_pass
+      POSTGRES_DB: idrm_db
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+      TZ: UTC
+      PGTZ: UTC
+    ports: ["5432:5432"]
+    volumes:
+      - idrm-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idrm_user -d idrm_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [idrm]
+
+  minio:
+    image: minio/minio:latest
+    container_name: idrm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [idrm-miniodata:/data]
+    networks: [idrm]
+
+  redis:
+    image: redis:7-alpine
+    container_name: idrm-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec",
+              "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["6379:6379"]
+    volumes: [idrm-redisdata:/data]
+    networks: [idrm]
+
+volumes:
+  idrm-pgdata:
+  idrm-miniodata:
+  idrm-redisdata:
+
+networks:
+  idrm:
+    driver: bridge

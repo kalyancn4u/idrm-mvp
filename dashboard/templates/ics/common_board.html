@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import pri_badge, status_badge, reltime, empty_state %}
+{% block title %}Command Board{% endblock %}
+{% block breadcrumb %}ICS / {{ incident.id|string|truncate(8, True, '') }}{% endblock %}
+
+{% block content %}
+<div class="card" style="border-left:5px solid var(--pri-{{ incident.priority.value if incident.priority.value is defined else incident.priority }});">
+  <div class="flex justify-between items-center" style="flex-wrap:wrap;">
+    <div>
+      <div class="flex gap-2 items-center">
+        {{ pri_badge(incident.priority) }}
+        {{ status_badge(incident.status) }}
+        <span class="badge badge-info">#{{ incident.id|string|truncate(8, True, '') }}</span>
+      </div>
+      <h1 class="mt-2">Incident Command Board</h1>
+      <p class="text-muted">{{ incident.description[:160] }}{% if incident.description|length > 160 %}…{% endif %}</p>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('incidents.detail', incident_id=incident.id) }}">View incident →</a>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-6">
+  <div class="card">
+    <h4>Command Staff</h4>
+    {% if commands %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for c in commands %}
+          <li style="padding:var(--space-3) 0; border-bottom:1px solid var(--color-border-light);">
+            <span class="type-tag">{{ c.ics_role.value if c.ics_role.value is defined else c.ics_role }}</span>
+            <div class="text-small">Commander: <code>{{ c.commander_id }}</code></div>
+            {% if c.objectives %}<p class="text-small mt-2">{{ c.objectives }}</p>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ empty_state("◈", "No command structure established") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Run Logs</h4>
+    {% if run_logs %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for r in run_logs %}
+          <li style="padding:var(--space-3) 0; border-bottom:1px solid var(--color-border-light);">
+            <strong>{{ r.title }}</strong>
+            <div class="text-small">{{ r.log_type.value if r.log_type.value is defined else r.log_type }} · {{ reltime(r.started_at) }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ empty_state("◴", "No run logs yet") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h4>Lanes</h4>
+  {% if lanes %}
+    <div class="grid grid-2 mt-4">
+      {% for lane, assignments in lanes %}
+        <div class="card" style="border-left:4px solid {{ lane.color or 'var(--color-primary)' }};">
+          <div class="flex justify-between items-center">
+            <strong>{{ lane.name }}</strong>
+            <span class="type-tag">{{ lane.lane_type.value if lane.lane_type.value is defined else lane.lane_type }}</span>
+          </div>
+          {% if lane.objectives %}<p class="text-small mt-2">{{ lane.objectives }}</p>{% endif %}
+          {% if assignments %}
+            <ul style="list-style:none; margin-top:var(--space-3); font-size:var(--font-size-sm);">
+              {% for a in assignments %}
+                <li style="padding:var(--space-1) 0;">
+                  {% if a.user_id %}<code>{{ a.user_id|string|truncate(8, True, '') }}</code>{% endif %}
+                  {% if a.unit_id %}<code>{{ a.unit_id|string|truncate(8, True, '') }}</code>{% endif %}
+                  {% if a.role %} · {{ a.role }}{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted text-small mt-3">No assignments.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    {{ empty_state("◌", "No lanes defined") }}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+# =============================================================================
+#  IDRM MVP — pre-commit hooks
+#
+#  Install once:   pre-commit install
+#  Run manually:   pre-commit run --all-files
+# =============================================================================
+
+repos:
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+      - id: forbid-submodules
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: dashboard-boundary
+        name: dashboard must not import from app
+        entry: python scripts/lint_boundaries.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: no-placeholder-commit
+        name: reject PLACEHOLDER in committed files
+        entry: bash -c 'grep -rEn "(PLACEHOLDER|TODO_CRITICAL)" --include="*.py" --include="*.sql" . | grep -v test | grep -v docs | grep -v "\.venv" && exit 1 || exit 0'
+        language: system
+        pass_filenames: false
+        always_run: true

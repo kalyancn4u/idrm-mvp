@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, empty_state, page_head %}
+{% block title %}Trainings{% endblock %}
+{% block breadcrumb %}Scheduling / Trainings{% endblock %}
+
+{% block content %}
+{{ page_head("Trainings", trainings|length ~ " training modules") }}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h4>Training modules</h4>
+    {% if trainings %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for t in trainings %}
+          <li style="padding:var(--space-3) 0; border-bottom:1px solid var(--color-border-light);">
+            <strong>{{ t.title }}</strong>
+            <div class="text-small">{{ t.code }}{% if t.validity_months %} · valid {{ t.validity_months }} months{% endif %}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ empty_state("◫", "No trainings defined yet") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h4>Pending assignments</h4>
+    {% if assignments %}
+      <ul style="list-style:none; margin-top:var(--space-4);">
+        {% for a in assignments %}
+          <li style="padding:var(--space-3) 0; border-bottom:1px solid var(--color-border-light);">
+            {{ status_badge(a.status) }}
+            <code>{{ a.training_id|string|truncate(8, True, '') }}</code>
+            {% if a.due_at %}<span class="text-small">· due {{ reltime(a.due_at) }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ empty_state("✓", "No pending assignments") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h4>Expiring certifications</h4>
+  {% if certifications %}
+    <div class="table-wrapper mt-4">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Code</th><th>Issued by</th><th>Expires</th></tr></thead>
+        <tbody>
+          {% for c in certifications %}
+            <tr>
+              <td><strong>{{ c.name }}</strong></td>
+              <td><code>{{ c.code }}</code></td>
+              <td class="text-muted">{{ c.issued_by or '—' }}</td>
+              <td class="text-error">{{ c.expires_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("✓", "No certifications expiring in the next 60 days") }}
+  {% endif %}
+</div>
+{% endblock %}

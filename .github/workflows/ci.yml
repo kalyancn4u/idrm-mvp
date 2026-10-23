@@ -1,0 +1,160 @@
+# =============================================================================
+#  IDRM MVP — Continuous Integration
+#  Runs on every push and every pull request.
+#
+#  Two jobs
+#    - lint  ruff + the dashboard→app boundary check
+#    - test  pytest against a real PostGIS instance, with and without Redis
+# =============================================================================
+
+name CI
+
+on
+  push
+    branches [main, develop]
+  pull_request
+    branches [main, develop]
+
+concurrency
+  group ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress true
+
+env
+  PYTHON_VERSION 3.12
+  PIP_DISABLE_PIP_VERSION_CHECK 1
+  PYTHONDONTWRITEBYTECODE 1
+
+jobs
+
+  # ---------------------------------------------------------------------------
+  #  Lint — fast feedback
+  # ---------------------------------------------------------------------------
+  lint
+    name Lint + boundary check
+    runs-on ubuntu-latest
+    steps
+      - uses actionscheckout@v4
+
+      - uses actionssetup-python@v5
+        with
+          python-version ${{ env.PYTHON_VERSION }}
+          cache pip
+
+      - name Install ruff
+        run pip install ruff==0.4.4
+
+      - name ruff check
+        run ruff check app dashboard shared tests scripts
+
+      - name Boundary check (dashboard → app is forbidden)
+        run 
+          python - 'EOF'
+          import pathlib, sys
+          bad = [
+              f for f in pathlib.Path(dashboard).rglob(.py)
+              if from app in f.read_text() or import app in f.read_text()
+          ]
+          if bad
+              print(✖ dashboard imports from app)
+              for f in bad print(f   {f})
+              sys.exit(1)
+          print(✔ no dashboard→app imports)
+          EOF
+
+  # ---------------------------------------------------------------------------
+  #  Test — against a real PostGIS instance
+  # ---------------------------------------------------------------------------
+  test
+    name Test (PostGIS, with and without Redis)
+    runs-on ubuntu-latest
+    needs lint
+
+    services
+      postgres
+        image postgispostgis16-3.4
+        env
+          POSTGRES_USER idrm_user
+          POSTGRES_PASSWORD idrm_pass
+          POSTGRES_DB idrm_db
+        ports [54325432]
+        options -
+          --health-cmd pg_isready -U idrm_user -d idrm_db
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+      redis
+        image redis7-alpine
+        ports [63796379]
+        options -
+          --health-cmd redis-cli ping
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env
+      APP_ENV testing
+      DATABASE_URL postgresql+asyncpgidrm_useridrm_pass@localhost5432idrm_db
+      DATABASE_URL_SYNC postgresql+psycopg2idrm_useridrm_pass@localhost5432idrm_db
+      REDIS_URL redislocalhost63790
+      JWT_PRIVATE_KEY_PATH keysjwt_private.pem
+      JWT_PUBLIC_KEY_PATH keysjwt_public.pem
+      SECRET_KEY ci-secret-key-not-for-production
+
+    steps
+      - uses actionscheckout@v4
+
+      - uses actionssetup-python@v5
+        with
+          python-version ${{ env.PYTHON_VERSION }}
+          cache pip
+
+      - name Install dependencies
+        run 
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name Generate JWT keypair
+        run python scriptsgenerate_keys.py
+
+      - name Apply migrations
+        run alembic upgrade head
+
+      - name Seed sample data
+        run python -m scripts.seed
+
+      - name Run the test suite (with Redis)
+        run pytest -q
+
+      - name Run the test suite (without Redis)
+        env
+          REDIS_URL 
+        run pytest -q -m not requires_redis
+
+      - name Coverage report
+        run 
+          pytest -q --cov=app --cov=dashboard --cov=shared 
+              --cov-report=term-missing --cov-fail-under=60
+        if always()
+
+  # ---------------------------------------------------------------------------
+  #  Docker build — proves the image builds
+  # ---------------------------------------------------------------------------
+  docker
+    name Docker build
+    runs-on ubuntu-latest
+    needs lint
+    steps
+      - uses actionscheckout@v4
+
+      - name Set up Docker Buildx
+        uses dockersetup-buildx-action@v3
+
+      - name Build image (no push)
+        uses dockerbuild-push-action@v5
+        with
+          context .
+          push false
+          tags idrmci-${{ github.sha }}
+          cache-from type=gha
+          cache-to type=gha,mode=max

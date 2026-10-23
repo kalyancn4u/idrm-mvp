@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import pri_badge, status_badge, reltime, empty_state, pager, page_head %}
+{% block title %}Incidents{% endblock %}
+{% block breadcrumb %}Incidents{% endblock %}
+
+{% block content %}
+{{ page_head("Incidents", total ~ " total", badge='<span class="badge badge-warm">CONSOLE</span>') }}
+
+<form class="filter-bar card" method="get">
+  <div class="filter-grid">
+    <div class="form-group">
+      <label class="form-label" for="q">Search</label>
+      <input id="q" name="q" type="text" value="{{ q }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">All</option>
+        {% for s in ['created','approved','accepted','in_progress','completed','verified','cancelled','rejected'] %}
+          <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s.replace('_',' ') }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="service_type">Service</label>
+      <select id="service_type" name="service_type">
+        <option value="">All</option>
+        {% for s in ['medical','food','rescue','water','shelter','other'] %}
+          <option value="{{ s }}" {{ 'selected' if service_type == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="priority">Priority</label>
+      <select id="priority" name="priority">
+        <option value="">All</option>
+        {% for p in ['critical','high','medium','low'] %}
+          <option value="{{ p }}" {{ 'selected' if priority == p }}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Apply</button>
+      <a class="btn btn-ghost" href="{{ url_for('incidents.list_view') }}">Reset</a>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>Service</th><th>Priority</th><th>Status</th>
+          <th>Description</th><th>Auto</th><th>Created</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td><strong>{{ r.service_type.value if r.service_type.value is defined else r.service_type }}</strong></td>
+              <td>{{ pri_badge(r.priority) }}</td>
+              <td>{{ status_badge(r.status) }}</td>
+              <td class="cell-title">{{ r.description[:100] }}{% if r.description|length > 100 %}…{% endif %}</td>
+              <td>{% if r.auto_approved %}<span class="badge badge-warm">auto</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="text-muted">{{ reltime(r.created_at) }}</td>
+              <td><a class="btn btn-ghost btn-sm" href="{{ url_for('incidents.detail', incident_id=r.id) }}">Open →</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'incidents.list_view', status=status, service_type=service_type, priority=priority, q=q) }}
+  {% else %}
+    {{ empty_state("🎯", "No incidents match", "Adjust the filters or check back later.") }}
+  {% endif %}
+</div>
+{% endblock %}
+

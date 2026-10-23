@@ -1,0 +1,12 @@
+Placeholder so the empty assets/ directory is tracked.
+
+Drop screenshots here, referenced from the docs:
+
+    docs/assets/two-canvases.png     — the API (cool slate) next to the
+                                        console (warm saffron), side by side
+    docs/assets/dispatch-console.png — the three-panel CAD workflow
+    docs/assets/bigboard.png         — the widget grid
+    docs/assets/login.png            — the login page
+
+The two-canvases screenshot is the single most valuable asset: it makes
+the visual distinction argument in one image.

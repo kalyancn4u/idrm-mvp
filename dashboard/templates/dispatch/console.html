@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import pri_badge, status_badge, reltime, empty_state, page_head %}
+{% block title %}Dispatch Console{% endblock %}
+{% block breadcrumb %}Dispatch Console{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+  <div>
+    <h1>Dispatch Console</h1>
+    <p class="text-muted">Live CAD workflow — assign resources to incidents.</p>
+  </div>
+  <span class="badge badge-warm">{{ incidents|length }} open · {{ personnel|length }} personnel · {{ units|length }} units</span>
+</div>
+
+<div class="dispatch-grid">
+
+  {# ---------- Panel 1: Incident Queue ---------- #}
+  <section class="dispatch-panel">
+    <header class="dispatch-panel-head">
+      <span>Incident Queue</span>
+      <span class="text-small">{{ incidents|length }}</span>
+    </header>
+    <div class="dispatch-panel-body">
+      {% if incidents %}
+        {% for i in incidents %}
+          {% set p = i.priority.value if i.priority.value is defined else i.priority %}
+          {% set s = i.status.value if i.status.value is defined else i.status %}
+          <a class="incident-card pri-{{ p }} {{ 'selected' if selected_id == i.id|string }}"
+             data-incident-id="{{ i.id }}"
+             href="{{ url_for('dispatch.console', selected=i.id) }}">
+            <div class="incident-card-title">{{ i.description[:80] }}{% if i.description|length > 80 %}…{% endif %}</div>
+            <div class="incident-card-meta">
+              {{ pri_badge(i.priority) }}
+              {{ status_badge(i.status) }}
+              <span>{{ i.service_type.value if i.service_type.value is defined else i.service_type }}</span>
+              <span>{{ reltime(i.created_at) }}</span>
+            </div>
+          </a>
+        {% endfor %}
+      {% else %}
+        {{ empty_state("🎯", "No open incidents", "Nothing to dispatch right now.") }}
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------- Panel 2: Selected Incident ---------- #}
+  <section class="dispatch-panel">
+    <header class="dispatch-panel-head">
+      <span>Incident Detail</span>
+      {% if selected_id %}<span class="text-small">#{{ selected_id[:8] }}</span>{% endif %}
+    </header>
+    <div class="dispatch-panel-body">
+      {% if selected_id %}
+        {% set selected = incidents|selectattr('id', 'equalto', selected_id)|first %}
+        {% if selected %}
+          {% set p = selected.priority.value if selected.priority.value is defined else selected.priority %}
+          <div class="card-flush" style="padding:var(--space-4); border:1px solid var(--color-border-light); border-radius:var(--radius-lg);">
+            <div class="flex gap-2 items-center" style="flex-wrap:wrap;">
+              {{ pri_badge(selected.priority) }}
+              {{ status_badge(selected.status) }}
+              <span class="type-tag">{{ selected.service_type.value if selected.service_type.value is defined else selected.service_type }}</span>
+            </div>
+            <h3 class="mt-2" style="font-size:var(--font-size-lg);">{{ selected.description }}</h3>
+            <p class="text-small mt-2">Created {{ reltime(selected.created_at) }}</p>
+
+            <hr>
+
+            <form method="post" action="{{ url_for('dispatch.assign') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="incident_id" value="{{ selected.id }}">
+              <input type="hidden" name="unit_id" value="">
+              <input type="hidden" name="user_id" value="">
+
+              <h4>Select a resource</h4>
+              <p class="text-small">Click a resource chip on the right, then dispatch below.</p>
+
+              <div class="form-group mt-4">
+                <label class="form-label" for="note">Dispatch note</label>
+                <input id="note" name="note" type="text" placeholder="ETA 12 min…">
+              </div>
+
+              <div class="flex gap-2">
+                <button class="btn btn-warm" type="submit">⚡ Dispatch Now</button>
+                <button class="btn btn-outline" type="submit" formaction="{{ url_for('dispatch.offer') }}">
+                  📨 Offer
+                </button>
+              </div>
+            </form>
+          </div>
+        {% else %}
+          {{ empty_state("👈", "Select an incident", "Click a request on the left.") }}
+        {% endif %}
+      {% else %}
+        {{ empty_state("👈", "Select an incident", "Click a request on the left to dispatch.") }}
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------- Panel 3: Available Resources ---------- #}
+  <section class="dispatch-panel">
+    <header class="dispatch-panel-head">
+      <span>Available Resources</span>
+      <span class="text-small">{{ personnel|length + units|length }}</span>
+    </header>
+    <div class="dispatch-panel-body">
+      <h4 class="text-small" style="text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-muted);">Personnel</h4>
+      {% for u, s in personnel %}
+        <div class="resource-chip" data-field="user_id" data-value="{{ u.id }}">
+          <div>
+            <div class="name">{{ u.name }}</div>
+            <div class="status">{{ s.status.value if s.status.value is defined else s.status }}</div>
+          </div>
+          <span class="badge badge-{{ 'success' if (s.status.value if s.status.value is defined else s.status) == 'available' else 'warning' }}">
+            {{ (s.status.value if s.status.value is defined else s.status)|replace('_',' ') }}
+          </span>
+        </div>
+      {% else %}
+        <p class="text-muted text-small">No personnel with an active status.</p>
+      {% endfor %}
+
+      <h4 class="text-small mt-6" style="text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-muted);">Units</h4>
+      {% for u, s in units %}
+        <div class="resource-chip" data-field="unit_id" data-value="{{ u.id }}">
+          <div>
+            <div class="name">{{ u.name }}</div>
+            <div class="status">{{ (s.status.value if s and s.status.value is defined else (s.status if s else 'in_quarters')) }}</div>
+          </div>
+        </div>
+      {% else %}
+        <p class="text-muted text-small">No units registered.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, page_head %}
+{% block title %}Pending Volunteers{% endblock %}
+{% block breadcrumb %}Organizations / Volunteers{% endblock %}
+
+{% block content %}
+{{ page_head("Pending Volunteer Enrollments", enrollments|length ~ " awaiting approval") }}
+
+<div class="card">
+  {% if enrollments %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>User</th><th>Scope</th><th>Self-enrolled</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          {% for e in enrollments %}
+            <tr>
+              <td><code>{{ e.user_id|string|truncate(12, True, '') }}</code></td>
+              <td>
+                <span class="type-tag">{{ e.scope_type.value if e.scope_type.value is defined else e.scope_type }}</span>
+                {% if e.scope_id %}<code>{{ e.scope_id|string|truncate(8, True, '') }}</code>{% endif %}
+              </td>
+              <td class="text-muted">{{ reltime(e.self_enrolled_at) }}</td>
+              <td class="cell-actions">
+                <form method="post" action="{{ url_for('organizations.approve_volunteer', enrollment_id=e.id) }}" style="display:inline;">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-primary btn-sm" type="submit">Approve</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("✓", "No pending enrollments", "All volunteer applications have been processed.") }}
+  {% endif %}
+</div>
+{% endblock %}

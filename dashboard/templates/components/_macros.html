@@ -1,0 +1,76 @@
+{# ==========================================================================
+   Dashboard macros — imported with:
+     {% from "components/_macros.html" import kpi, pri_badge, status_badge, ... %}
+   ========================================================================== #}
+
+{% macro kpi(label, value, meta=None, tone='emerald', href=None) %}
+  {% if href %}<a class="kpi-card kpi-{{ tone }}" href="{{ href }}">{% else %}<div class="kpi-card kpi-{{ tone }}">{% endif %}
+    <div class="kpi-head"><span class="kpi-label">{{ label }}</span></div>
+    <div class="kpi-value">{{ value }}</div>
+    {% if meta %}<div class="kpi-meta">{{ meta }}</div>{% endif %}
+  {% if href %}</a>{% else %}</div>{% endif %}
+{% endmacro %}
+
+{% macro pri_badge(priority) %}
+  {% set p = (priority.value if priority.value is defined else priority)|lower %}
+  <span class="badge pri pri-{{ p }}"><span class="pri-dot" aria-hidden="true"></span>{{ p|upper }}</span>
+{% endmacro %}
+
+{% macro status_badge(status) %}
+  {% set s = (status.value if status.value is defined else status)|lower %}
+  {% set tone = {
+      'created': 'info', 'approved': 'review', 'accepted': 'info',
+      'in_progress': 'warning', 'completed': 'success', 'verified': 'success',
+      'cancelled': 'error', 'rejected': 'error',
+      'available': 'success', 'responding': 'warning', 'on_scene': 'error',
+      'transporting': 'warning', 'at_hospital': 'info', 'returning': 'info',
+      'unavailable': 'error', 'off_duty': 'info',
+      'in_quarters': 'success', 'dispatched': 'warning', 'en_route': 'warning',
+      'out_of_service': 'error',
+      'active': 'success', 'pending': 'warning',
+      'suspended': 'error', 'deactivated': 'error',
+      'matched_policy': 'success', 'deferred': 'warning',
+      'rejected': 'error', 'skipped': 'info',
+  }.get(s, 'info') %}
+  <span class="badge badge-{{ tone }}">{{ s|replace('_', ' ') }}</span>
+{% endmacro %}
+
+{% macro reltime(dt) %}
+  {% if dt %}<time datetime="{{ dt.isoformat() }}">{{ dt.strftime('%Y-%m-%d %H:%M') }}</time>
+  {% else %}<span class="text-muted">—</span>{% endif %}
+{% endmacro %}
+
+{% macro empty_state(icon, title, description=None, action_url=None, action_label=None) %}
+  <div class="state-container">
+    <div class="state-icon" aria-hidden="true">{{ icon }}</div>
+    <div class="state-title">{{ title }}</div>
+    {% if description %}<div class="state-description">{{ description }}</div>{% endif %}
+    {% if action_url %}<a class="btn btn-outline" href="{{ action_url }}">{{ action_label }}</a>{% endif %}
+  </div>
+{% endmacro %}
+
+{% macro pager(page, pages, endpoint, **kwargs) %}
+  {% if pages > 1 %}
+    {% set args = kwargs.copy() %}
+    <nav class="pager" aria-label="Pagination">
+      {% if page > 1 %}<a class="pager-link" href="{{ url_for(endpoint, page=page-1, **args) }}">← Prev</a>
+      {% else %}<span class="pager-link is-disabled">← Prev</span>{% endif %}
+      <span class="pager-info">Page <strong>{{ page }}</strong> of {{ pages }}</span>
+      {% if page < pages %}<a class="pager-link" href="{{ url_for(endpoint, page=page+1, **args) }}">Next →</a>
+      {% else %}<span class="pager-link is-disabled">Next →</span>{% endif %}
+    </nav>
+  {% endif %}
+{% endmacro %}
+
+{% macro page_head(title, subtitle=None, badge=None) %}
+  <header class="mb-4">
+    <div class="flex justify-between items-center" style="flex-wrap:wrap;">
+      <div>
+        <h1>{{ title }}</h1>
+        {% if subtitle %}<p class="text-muted">{{ subtitle }}</p>{% endif %}
+      </div>
+      {% if badge %}<div>{{ badge|safe }}</div>{% endif %}
+    </div>
+  </header>
+{% endmacro %}
+

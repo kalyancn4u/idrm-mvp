@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, empty_state, pager, page_head %}
+{% block title %}Decisions{% endblock %}
+{% block breadcrumb %}Decisions{% endblock %}
+
+{% block content %}
+{{ page_head("Auto-Approval Decisions", total ~ " decisions",
+             badge='<span class="badge badge-warm">AUDITABLE</span>') }}
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>When</th><th>Subject</th><th>Decision</th><th>Reason</th>
+          <th>Policy</th><th>Counters</th>
+        </tr></thead>
+        <tbody>
+          {% for d in rows %}
+            <tr>
+              <td class="text-muted">{{ reltime(d.evaluated_at) }}</td>
+              <td>
+                <span class="type-tag">{{ d.subject_type.value if d.subject_type.value is defined else d.subject_type }}</span>
+                <code>{{ d.subject_id|string|truncate(10, True, '') }}</code>
+              </td>
+              <td>{{ status_badge(d.decision.value if d.decision.value is defined else d.decision) }}</td>
+              <td>{{ d.reason.value if d.reason.value is defined else d.reason }}</td>
+              <td>{% if d.policy_id %}<code>{{ d.policy_id|string|truncate(8, True, '') }}</code>{% else %}—{% endif %}</td>
+              <td class="text-small">{{ d.counters_at_decision }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'policies.decisions', decision=decision) }}
+  {% else %}
+    {{ empty_state("✓", "No decisions recorded") }}
+  {% endif %}
+</div>
+{% endblock %}
+

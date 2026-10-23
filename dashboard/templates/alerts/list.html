@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, pager, page_head %}
+{% block title %}Alerts{% endblock %}
+{% block breadcrumb %}Alerts{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+  <div>
+    <h1>Alerts</h1>
+    <p class="text-muted">{{ total }} total · {{ 'active only' if request.args.get('all') != '1' else 'all' }}</p>
+  </div>
+  <a class="btn btn-warm" href="{{ url_for('alerts.create') }}">+ Issue alert</a>
+</div>
+
+<div class="card">
+  {% if rows %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Severity</th><th>Title</th><th>Message</th><th>Created</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for a in rows %}
+            <tr>
+              <td>
+                {% set sev = a.severity.value if a.severity.value is defined else a.severity %}
+                <span class="badge badge-{{ 'error' if sev == 'critical' else 'warning' if sev == 'warning' else 'info' }}">{{ sev|upper }}</span>
+              </td>
+              <td><strong>{{ a.title }}</strong></td>
+              <td class="cell-title">{{ a.message[:120] }}{% if a.message|length > 120 %}…{% endif %}</td>
+              <td class="text-muted">{{ reltime(a.created_at) }}</td>
+              <td>
+                {% if a.active %}<span class="badge badge-success">active</span>
+                {% else %}<span class="badge badge-info">inactive</span>{% endif %}
+              </td>
+              <td>
+                {% if a.active %}
+                  <form method="post" action="{{ url_for('alerts.deactivate', alert_id=a.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-ghost btn-sm" type="submit">Deactivate</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {{ pager(page, pages, 'alerts.list_view') }}
+  {% else %}
+    {{ empty_state("⚠", "No alerts", "Issue an alert to broadcast an area warning.") }}
+  {% endif %}
+</div>
+{% endblock %}

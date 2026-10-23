@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import reltime, empty_state, page_head %}
+{% block title %}Shifts{% endblock %}
+{% block breadcrumb %}Scheduling / Shifts{% endblock %}
+
+{% block content %}
+{{ page_head("Upcoming Shifts", shifts|length ~ " scheduled") }}
+
+<div class="card">
+  {% if shifts %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr>
+          <th>Name</th><th>Starts</th><th>Ends</th>
+          <th>Coverage</th><th>Type</th><th>Required roles</th>
+        </tr></thead>
+        <tbody>
+          {% for s, signups in shifts %}
+            <tr>
+              <td><strong>{{ s.name }}</strong></td>
+              <td>{{ reltime(s.starts_at) }}</td>
+              <td>{{ reltime(s.ends_at) }}</td>
+              <td>
+                <span class="badge badge-{{ 'success' if signups >= s.min_personnel else 'warning' }}">
+                  {{ signups }} / {{ s.min_personnel }}
+                </span>
+              </td>
+              <td><span class="type-tag">{{ s.shift_type.value if s.shift_type.value is defined else s.shift_type }}</span></td>
+              <td class="text-small">{{ (s.required_roles or [])|join(', ') or '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("◷", "No upcoming shifts") }}
+  {% endif %}
+</div>
+{% endblock %}

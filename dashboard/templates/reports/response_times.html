@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import empty_state, page_head %}
+{% block title %}Response Times{% endblock %}
+{% block breadcrumb %}Reports / Response Times{% endblock %}
+
+{% block content %}
+{{ page_head("Response Times", "Average minutes from creation to verification") }}
+
+<div class="flex gap-2 mb-4">
+  <a class="btn btn-sm {{ 'btn-primary' if days == 7 else 'btn-outline' }}" href="?days=7">7d</a>
+  <a class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-outline' }}" href="?days=30">30d</a>
+  <a class="btn btn-sm {{ 'btn-primary' if days == 90 else 'btn-outline' }}" href="?days=90">90d</a>
+</div>
+
+<div class="card">
+  {% if response_times %}
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead><tr><th>Day</th><th>Average minutes to verify</th></tr></thead>
+        <tbody>
+          {% for r in response_times %}
+            <tr>
+              <td>{{ r.day.strftime('%Y-%m-%d') if r.day.strftime else r.day }}</td>
+              <td class="num">
+                {% if r.avg_minutes %}{{ '%.1f'|format(r.avg_minutes) }} min
+                {% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state("◫", "No verification data yet",
+                   "Response times appear here once incidents are verified.") }}
+  {% endif %}
+</div>
+{% endblock %}

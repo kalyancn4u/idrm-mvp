@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Forbidden{% endblock %}
+{% block content %}
+<div class="state-container">
+  <div class="state-icon">🚫</div>
+  <div class="state-title">403 — Access denied</div>
+  <div class="state-description">Your role does not permit access to this resource.</div>
+  <a class="btn btn-primary" href="{{ url_for('main.overview') }}">Return to overview</a>
+</div>
+{% endblock %}
+{% block anon_content %}
+<div class="login-shell">
+  <div class="login-card text-center">
+    <div class="state-icon">🚫</div>
+    <h1>403 — Access denied</h1>
+    <a class="btn btn-primary mt-4" href="{{ url_for('auth.login') }}">Sign in</a>
+  </div>
+</div>
+{% endblock %}
+

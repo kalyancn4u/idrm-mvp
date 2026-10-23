@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import pri_badge, status_badge, reltime %}
+{% block title %}{{ incident.id }}{% endblock %}
+{% block breadcrumb %}Incidents / Detail{% endblock %}
+
+{% block content %}
+{% set p = incident.priority.value if incident.priority.value is defined else incident.priority %}
+<div class="card" style="border-left:5px solid var(--pri-{{ p }});">
+  <div class="flex justify-between items-center" style="flex-wrap:wrap;">
+    <div>
+      <div class="flex gap-2 items-center" style="flex-wrap:wrap;">
+        {{ pri_badge(incident.priority) }}
+        {{ status_badge(incident.status) }}
+        {% if incident.auto_approved %}<span class="badge badge-warm">auto-approved</span>{% endif %}
+        <span class="badge badge-info">#{{ incident.id|string|truncate(10, True, '') }}</span>
+      </div>
+      <h1 class="mt-2">{{ incident.service_type.value if incident.service_type.value is defined else incident.service_type }} request</h1>
+      <p class="text-muted mt-2">{{ incident.description }}</p>
+    </div>
+    <div class="text-right">
+      <div class="text-small">Created</div>
+      <div>{{ reltime(incident.created_at) }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-3 mt-6">
+  <div class="card">
+    <h4>Subject</h4>
+    <dl style="font-size:var(--font-size-sm); margin-top:var(--space-3);">
+      <div style="display:grid; grid-template-columns:100px 1fr; gap:var(--space-2);">
+        <dt class="text-muted">Requester</dt><dd>{{ incident.requester_id or 'Guest' }}</dd>
+        <dt class="text-muted">Assigned org</dt><dd>{{ incident.assigned_organization_id or '—' }}</dd>
+        <dt class="text-muted">Priority</dt><dd>{{ p }}</dd>
+      </div>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>Lifecycle</h4>
+    <dl style="font-size:var(--font-size-sm); margin-top:var(--space-3);">
+      <div style="display:grid; grid-template-columns:100px 1fr; gap:var(--space-2);">
+        <dt class="text-muted">Status</dt><dd>{{ incident.status.value if incident.status.value is defined else incident.status }}</dd>
+        <dt class="text-muted">Verified at</dt><dd>{{ reltime(incident.verified_at) }}</dd>
+        <dt class="text-muted">Rating</dt><dd>{{ incident.rating or '—' }}</dd>
+      </div>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>Coordinator actions</h4>
+    {% set st = incident.status.value if incident.status.value is defined else incident.status %}
+    {% if st == 'created' %}
+      <form method="post" action="{{ url_for('incidents.approve', incident_id=incident.id) }}" class="mb-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label" for="note">Approve note</label>
+          <input id="note" name="note" type="text" placeholder="optional">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Approve</button>
+      </form>
+      <form method="post" action="{{ url_for('incidents.reject', incident_id=incident.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label required" for="reason">Reject reason</label>
+          <input id="reason" name="reason" type="text" required minlength="3">
+        </div>
+        <button class="btn btn-danger btn-block" type="submit">Reject</button>
+      </form>
+    {% else %}
+      <p class="text-muted">No coordinator action available in this state.</p>
+      <a class="btn btn-ghost btn-sm mt-2" href="{{ url_for('dispatch.console', selected=incident.id) }}">
+        ⚡ Open in Dispatch
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h3>Timeline</h3>
+  {% if updates %}
+    <ol class="timeline mt-4">
+      {% for u in updates %}
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div>
+            <p class="timeline-msg">{{ u.from_status.value if u.from_status and u.from_status.value is defined else (u.from_status or '—') }} → <strong>{{ u.to_status.value if u.to_status.value is defined else u.to_status }}</strong></p>
+            <p class="text-small">{{ u.note or '' }} · {{ reltime(u.created_at) }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="text-muted">No timeline entries yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
+

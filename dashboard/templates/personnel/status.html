@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, empty_state, page_head %}
+{% block title %}Personnel & Units{% endblock %}
+{% block breadcrumb %}Personnel & Units{% endblock %}
+
+{% block content %}
+{{ page_head("Personnel & Units", "Live operational status across the region") }}
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Personnel</h3>
+    {% if personnel %}
+      <div class="table-wrapper mt-4">
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Updated</th></tr></thead>
+          <tbody>
+            {% for u, s in personnel %}
+              <tr>
+                <td><strong>{{ u.name }}</strong></td>
+                <td><span class="type-tag">{{ u.role.value if u.role.value is defined else u.role }}</span></td>
+                <td>{% if s %}{{ status_badge(s.status) }}{% else %}<span class="badge badge-info">off_duty</span>{% endif %}</td>
+                <td class="text-muted">{% if s %}{{ reltime(s.updated_at) }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ empty_state("◉", "No personnel registered") }}
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Units</h3>
+    {% if units %}
+      <div class="table-wrapper mt-4">
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Kind</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for u, s in units %}
+              <tr>
+                <td><strong>{{ u.name }}</strong></td>
+                <td>{{ u.kind or '—' }}</td>
+                <td>{% if s %}{{ status_badge(s.status) }}{% else %}<span class="badge badge-success">in_quarters</span>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ empty_state("▤", "No units registered") }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h3>Recent status changes</h3>
+  {% if recent %}
+    <ol class="timeline mt-4">
+      {% for e in recent %}
+        <li class="timeline-item">
+          <span class="timeline-dot"></span>
+          <div>
+            <p class="timeline-msg">
+              <strong>{{ e.user_id }}</strong>
+              {% if e.from_status %}from {{ e.from_status.value if e.from_status.value is defined else e.from_status }}{% endif %}
+              → {{ e.to_status.value if e.to_status.value is defined else e.to_status }}
+            </p>
+            <p class="text-small">{{ e.note or '' }} · {{ reltime(e.occurred_at) }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    {{ empty_state("◷", "No status events yet") }}
+  {% endif %}
+</div>
+{% endblock %}
+

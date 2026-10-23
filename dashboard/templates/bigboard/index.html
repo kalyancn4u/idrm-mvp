@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import pri_badge, status_badge, reltime, empty_state %}
+{% block title %}BigBoard{% endblock %}
+{% block breadcrumb %}BigBoard{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-4">
+  <div>
+    <h1>BigBoard</h1>
+    <p class="text-muted">Situational awareness — the wall display view.</p>
+  </div>
+  <span class="badge badge-warm">Auto-refresh 30s</span>
+</div>
+
+<div class="bigboard" data-bigboard-refresh="30">
+
+  {% if 'active_incidents' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head">
+        <span class="bigboard-widget-title">Active Incidents</span>
+        <span class="badge badge-error">{{ data.active_incidents.items|length }}</span>
+      </div>
+      <div class="bigboard-widget-body">
+        {% if data.active_incidents.items %}
+          {% for i in data.active_incidents.items %}
+            <div class="bigboard-incident">
+              <span class="badge pri-{{ i.priority }}">{{ i.priority|upper }}</span>
+              <span class="desc">{{ i.description }}</span>
+              <span class="badge badge-info">{{ i.service }}</span>
+            </div>
+          {% endfor %}
+        {% else %}<p class="text-muted">No active incidents.</p>{% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if 'personnel_summary' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head"><span class="bigboard-widget-title">Personnel Status</span></div>
+      <div class="bigboard-widget-body">
+        {% for c in data.personnel_summary.counts %}
+          <div class="bigboard-count">
+            <span class="label">{{ c.status|replace('_',' ')|title }}</span>
+            <span class="n">{{ c.n }}</span>
+          </div>
+        {% else %}
+          <p class="text-muted">No personnel statuses.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if 'unit_summary' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head"><span class="bigboard-widget-title">Unit Status</span></div>
+      <div class="bigboard-widget-body">
+        {% for c in data.unit_summary.counts %}
+          <div class="bigboard-count">
+            <span class="label">{{ c.status|replace('_',' ')|title }}</span>
+            <span class="n">{{ c.n }}</span>
+          </div>
+        {% else %}
+          <p class="text-muted">No units.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if 'orgs_summary' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head"><span class="bigboard-widget-title">Organizations</span></div>
+      <div class="bigboard-widget-body">
+        <div class="bigboard-count"><span class="label">Total</span><span class="n">{{ data.orgs_summary.total }}</span></div>
+        <div class="bigboard-count"><span class="label">Verified</span><span class="n">{{ data.orgs_summary.verified }}</span></div>
+        <div class="bigboard-count"><span class="label">Available</span><span class="n">{{ data.orgs_summary.available }}</span></div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if 'shift_coverage' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head"><span class="bigboard-widget-title">Upcoming Shift Coverage</span></div>
+      <div class="bigboard-widget-body">
+        {% for s in data.shift_coverage['items'] %}
+          <div class="bigboard-count">
+            <span class="label">{{ s.name }}</span>
+            <span class="n">{{ s.signed_up }}/{{ s.min }}</span>
+          </div>
+        {% else %}
+          <p class="text-muted">No shifts scheduled.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% if 'available_resources' in widgets %}
+    <div class="bigboard-widget">
+      <div class="bigboard-widget-head"><span class="bigboard-widget-title">Available Resources</span></div>
+      <div class="bigboard-widget-body">
+        {% for u in data.available_resources['items'] %}
+          <div class="bigboard-count">
+            <span class="label">{{ u.name }}</span>
+            <span class="n">{{ u.status|replace('_',' ') }}</span>
+          </div>
+        {% else %}
+          <p class="text-muted">No units.</p>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+

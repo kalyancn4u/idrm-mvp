@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "components/_macros.html" import status_badge, reltime, section if false else status_badge %}
+{% block title %}{{ user.name }}{% endblock %}
+{% block breadcrumb %}Users / {{ user.name }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="flex gap-4 items-center" style="flex-wrap:wrap;">
+    <span class="avatar lg" aria-hidden="true">{{ user.name[:1]|upper }}</span>
+    <div style="flex:1; min-width:240px;">
+      <h1>{{ user.name }}</h1>
+      <p class="text-muted">{{ user.email }}{% if user.phone %} · {{ user.phone }}{% endif %}</p>
+      <div class="flex gap-2 items-center mt-2">
+        <span class="type-tag">{{ user.role.value if user.role.value is defined else user.role }}</span>
+        {{ status_badge(user.status) }}
+        <span class="text-small">Member since {{ reltime(user.created_at) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2 mt-6">
+  <div class="card">
+    <h4>Role</h4>
+    <form method="post" action="{{ url_for('users.set_role', user_id=user.id) }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="role">New role</label>
+        <select id="role" name="role">
+          {% for r in ['citizen','provider','coordinator','admin'] %}
+            <option value="{{ r }}" {{ 'selected' if (user.role.value if user.role.value is defined else user.role) == r }}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" type="submit">Update role</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h4>Status</h4>
+    <form method="post" action="{{ url_for('users.set_status', user_id=user.id) }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label" for="status">New status</label>
+        <select id="status" name="status">
+          {% for s in ['pending','active','suspended','deactivated'] %}
+            <option value="{{ s }}" {{ 'selected' if (user.status.value if user.status.value is defined else user.status) == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" type="submit">Update status</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mt-6">
+  <h4>Active sessions</h4>
+  {% if sessions %}
+    <div class="table-wrapper mt-4">
+      <table class="data-table">
+        <thead><tr><th>Session</th><th>IP</th><th>User-Agent</th><th>Created</th><th>Expires</th></tr></thead>
+        <tbody>
+          {% for s in sessions %}
+            <tr>
+              <td><code>{{ s.session_id[:12] }}…</code></td>
+              <td>{{ s.ip_address or '—' }}</td>
+              <td class="text-small">{{ s.user_agent or '—' }}</td>
+              <td class="text-muted">{{ reltime(s.created_at) }}</td>
+              <td class="text-muted">{{ reltime(s.expires_at) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="{{ url_for('users.force_logout', user_id=user.id) }}" class="mt-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-danger btn-sm" type="submit"
+              data-confirm="Revoke ALL sessions and invalidate all tokens?">Force sign-out everywhere</button>
+    </form>
+  {% else %}
+    <p class="text-muted mt-4">No active sessions.</p>
+  {% endif %}
+</div>
+{% endblock %}

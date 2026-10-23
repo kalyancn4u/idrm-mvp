@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}New Alert{% endblock %}
+{% block breadcrumb %}Alerts / New{% endblock %}
+
+{% block content %}
+<h1>Issue an alert</h1>
+<p class="text-muted mb-4">Broadcast a warning to affected areas.</p>
+
+<div class="card" style="max-width:640px;">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label class="form-label required" for="title">Title</label>
+      <input id="title" name="title" type="text" required minlength="3" maxlength="255">
+    </div>
+    <div class="form-group">
+      <label class="form-label required" for="message">Message</label>
+      <textarea id="message" name="message" rows="4" required minlength="10"></textarea>
+      <div class="form-hint">What should citizens do, and until when?</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label required" for="severity">Severity</label>
+      <select id="severity" name="severity" required>
+        <option value="info">Info — advisory</option>
+        <option value="warning">Warning — prepare</option>
+        <option value="critical">Critical — immediate action</option>
+      </select>
+    </div>
+    <button class="btn btn-warm" type="submit">Issue alert</button>
+    <a class="btn btn-ghost" href="{{ url_for('alerts.list_view') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in · IDRM Staff Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,600;14..32,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-card">
+    <div class="text-center mb-4">
+      <span class="brand-mark" style="margin:0 auto var(--space-3);display:grid;width:48px;height:48px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4">
+          <path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5"/>
+        </svg>
+      </span>
+      <h1 class="login-title">Staff Console</h1>
+      <p class="login-sub">Sign in as a coordinator or administrator.</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'error' if category == 'error' else category }}">
+          <div class="alert-icon">{% if category == 'error' %}✗{% else %}ℹ️{% endif %}</div>
+          <div class="alert-content"><div class="alert-message">{{ message }}</div></div>
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label required" for="email">Email</label>
+        <input id="email" name="email" type="email" required autofocus autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label required" for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+      </div>
+      <div class="checkbox-group">
+        <input id="remember" name="remember" type="checkbox">
+        <label for="remember">Keep me signed in on this device</label>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+    </form>
+
+    <details class="mt-4" style="border-top:1px solid var(--color-border-light); padding-top:var(--space-4);">
+      <summary class="text-small" style="cursor:pointer;color:var(--color-primary);font-weight:700;">
+        Demo credentials
+      </summary>
+      <table style="width:100%; margin-top:var(--space-2); font-size:var(--font-size-xs);">
+        <thead><tr><th align="left">Role</th><th align="left">Email</th><th align="left">Password</th></tr></thead>
+        <tbody>
+          <tr><td>Admin</td><td><code>admin@idrm.local</code></td><td><code>Admin#2026</code></td></tr>
+          <tr><td>Coordinator</td><td><code>coord.hyd@idrm.local</code></td><td><code>IDRMseed#2026</code></td></tr>
+        </tbody>
+      </table>
+    </details>
+  </div>
+
+  <p class="login-foot">The public API runs on a different port — see the README.</p>
+</div>
+</body>
+</html>
+
