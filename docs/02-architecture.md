@@ -51,6 +51,7 @@ Both apps:
 | 0011 | Entity lists are one table |
 | 0012 | Volunteer enrollment is scope-based |
 | 0013 | Two-token JWT with session check |
+| 0014 | Approval comes first; coordinators may auto-approve a region for a fixed period |
 
 ## Data flow — an auto-approved incident
 

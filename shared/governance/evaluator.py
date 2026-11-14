@@ -10,6 +10,7 @@ The four-step auto-approval algorithm.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -109,6 +110,13 @@ async def decide(
                 region_id=region["id"] if region else None,
             )
 
+        unsupported = _unsupported_conditions(policy["conditions"])
+        if unsupported:
+            # A rule the engine cannot check must never be treated as passed.
+            log.warning("Policy %s skipped: conditions not enforced by the engine: %s",
+                        policy["code"], ", ".join(unsupported))
+            continue
+
         if not _matches_conditions(policy["conditions"], facts):
             continue
 
@@ -120,7 +128,7 @@ async def decide(
             service_type=facts.get("service_type"),
             requester_id=facts.get("requester_id"),
             provider_id=facts.get("provider_id"),
-            caps=policy["caps"],
+            caps=_effective_caps(policy),
         )
         if counters is None:
             continue
@@ -143,14 +151,37 @@ async def decide(
     )
 
 
+# Conditions the engine actually evaluates. Anything else that is set makes
+# the policy ineligible (see `_unsupported_conditions`).
+SUPPORTED_CONDITIONS = frozenset({
+    "max_estimated_cost_inr",
+    "requester_min_trust_score",
+    "max_priority",
+    "max_per_requester_per_day",   # enforced as a cap, see _effective_caps
+    "always_reject",               # handled in decide()
+})
+
+_PRIORITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
 def _matches_scope(policy: dict, facts: dict, region: dict | None) -> bool:
-    if policy["region_scope"] and region and str(region["id"]) not in policy["region_scope"]:
-        return False
+    if policy["region_scope"]:
+        # A region-scoped policy needs a known region that is in its scope.
+        if region is None or str(region["id"]) not in policy["region_scope"]:
+            return False
     if policy["service_types"] and facts.get("service_type") not in policy["service_types"]:
         return False
     if policy["priorities_allowed"] and facts.get("priority") not in policy["priorities_allowed"]:
         return False
     return True
+
+
+def _unsupported_conditions(conditions: dict) -> list[str]:
+    """Condition names that are set but that this engine does not evaluate."""
+    return sorted(
+        k for k, v in conditions.items()
+        if v is not None and k not in SUPPORTED_CONDITIONS
+    )
 
 
 def _matches_conditions(conditions: dict, facts: dict) -> bool:
@@ -160,7 +191,34 @@ def _matches_conditions(conditions: dict, facts: dict) -> bool:
     min_trust = conditions.get("requester_min_trust_score")
     if min_trust is not None and facts.get("requester_trust_score", 0) < min_trust:
         return False
+    max_priority = conditions.get("max_priority")
+    if max_priority is not None:
+        ceiling = _PRIORITY_RANK.get(max_priority)
+        actual = _PRIORITY_RANK.get(facts.get("priority"))
+        if ceiling is None or actual is None or actual > ceiling:
+            return False
     return True
+
+
+def _effective_caps(policy: dict) -> dict:
+    """
+    The policy's caps, with the `max_per_requester_per_day` condition folded
+    in: it is a per-day count, so it is enforced by the same counters. Where
+    both are given, the stricter one wins.
+    """
+    caps = dict(policy["caps"])
+    limit = policy["conditions"].get("max_per_requester_per_day")
+    if limit is not None:
+        existing = caps.get("per_requester_per_day")
+        caps["per_requester_per_day"] = min(limit, existing) if existing else limit
+    return caps
+
+
+def _as_uuid(value):
+    """Ids travel as strings through the JSON cache; the columns want UUIDs."""
+    if value is None or isinstance(value, uuid.UUID):
+        return value
+    return uuid.UUID(str(value))
 
 
 async def _record(
@@ -177,14 +235,14 @@ async def _record(
     row = AutoApprovalDecision(
         subject_type=subject_type,
         subject_id=subject_id,
-        policy_id=policy_id,
+        policy_id=_as_uuid(policy_id),
         decision=decision,
         reason=reason,
         counters_at_decision=counters or {},
         evaluated_at=datetime.now(UTC),
     )
     if region_id:
-        row.region_id = region_id
+        row.region_id = _as_uuid(region_id)
     db.add(row)
     await db.flush()
     return row

@@ -39,7 +39,7 @@ make run
 ```
 
 - **API docs** → http://127.0.0.1:8000/docs
-- **Staff console** → http://127.0.0.1:5000/dashboard/login
+- **Staff console** → http://127.0.0.1:5000/dashboard/auth/login
 
 ### Demo credentials
 
@@ -96,7 +96,7 @@ idrm-mvp/
 ├── sql/                     readable DDL + sample data
 ├── scripts/                 bootstrap, seed, keys, run_all, smoke
 ├── tests/                   unit · api · dashboard · integration
-└── docs/                    13 documents + 13 ADRs
+└── docs/                    13 documents + 14 ADRs
 ```
 
 ---
@@ -130,14 +130,23 @@ created ──approve──▶ approved ──accept──▶ accepted ──sta
 ```
 
 The dashboard drives `approve` / `reject` from the Dispatch Console. The
-other seven transitions are provider / citizen actions through the public API.
+other transitions are provider / citizen actions through the public API.
+
+**Approval comes first.** A provider can `accept` a request only once it is
+`approved`. By default that means a coordinator approves it. During a
+disaster, a coordinator can switch on auto-approval for a named region and a
+fixed period; when the period ends, requests wait for a coordinator again.
+See [ADR-0014](docs/adr/0014-approval-first.md).
 
 ---
 
 ## Auto-approval and governance
 
-Low-risk incidents and providers can be auto-approved the moment they are
-created — with caps, region scoping, and an auditable decision record.
+Auto-approval is **off unless someone switches it on**. A coordinator can
+turn it on for a specific region for a stipulated period (an admin can also
+create wider policies). While it is on, matching low-risk incidents are
+approved the moment they are created — with caps and an auditable decision
+record. Outside that region or period, every request waits for a coordinator.
 
 ```
 Create → Region lookup (ST_Covers) → Policy match → Caps (Redis Lua)
@@ -235,7 +244,7 @@ make nuke              Remove venv too
 | 12 | [Governance](docs/12-governance.md) |
 | 13 | [Auth & Sessions](docs/13-auth-and-sessions.md) |
 
-Plus 13 [ADRs](docs/adr/) recording every architectural decision.
+Plus 14 [ADRs](docs/adr/) recording every architectural decision.
 
 ---
 

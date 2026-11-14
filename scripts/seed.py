@@ -42,8 +42,36 @@ UNIT_1     = uuid.UUID("21000000-0000-4000-8000-000000000001")
 UNIT_2     = uuid.UUID("21000000-0000-4000-8000-000000000002")
 
 
+# Starter regions — the same rectangles as sql/05_regions_and_policies.sql.
+# (code, name, WKT boundary in lon/lat order)
+REGIONS = [
+    ("IN-TG-HYD", "Hyderabad Urban",
+     "MULTIPOLYGON(((78.35 17.35, 78.55 17.35, 78.55 17.45, 78.35 17.45, 78.35 17.35)))"),
+    ("IN-AP-VJA", "Vijayawada Urban",
+     "MULTIPOLYGON(((80.60 16.48, 80.72 16.48, 80.72 16.55, 80.60 16.55, 80.60 16.48)))"),
+    ("IN-AP-VTZ", "Visakhapatnam Urban",
+     "MULTIPOLYGON(((83.20 17.65, 83.35 17.65, 83.35 17.78, 83.20 17.78, 83.20 17.65)))"),
+]
+
+
+def _upsert_regions(db) -> None:
+    """Create the starter regions. `code` is unique, so re-running is a no-op."""
+    for code, name, wkt in REGIONS:
+        db.execute(
+            text(
+                "INSERT INTO regions (code, name, boundary) "
+                "VALUES (:code, :name, ST_GeomFromText(:wkt, 4326)) "
+                "ON CONFLICT (code) DO NOTHING"
+            ),
+            {"code": code, "name": name, "wkt": wkt},
+        )
+    db.flush()
+
+
 def _upsert_user(db, uid, email, name, role, *, phone=None, lang="en"):
-    existing = db.get(User, uid)
+    # Look up by email, not id: `users.email` is unique, and the admin row is
+    # already inserted by migration 0003 under a different id.
+    existing = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if existing:
         return existing
     user = User(
@@ -109,10 +137,9 @@ def main() -> None:
         db.commit()
 
         # --- regions -------------------------------------------------------
+        _upsert_regions(db)
+        db.commit()
         regions = db.execute(select(Region)).scalars().all()
-        if not regions:
-            print("⚠  No regions found — run `make migrate` first, then re-seed")
-            return
 
         # --- organizations -------------------------------------------------
         _upsert_org(db, ORG_NGO, "Smiling Hearts Foundation", NGO_OWNER,
@@ -214,7 +241,7 @@ def main() -> None:
             db.commit()
 
         print("✔ Seed complete")
-        print(f"   admin@idrm.local / Admin#2026")
+        print("   admin@idrm.local / Admin#2026  (set by migration 0003)")
         print(f"   all seeded users / {settings.seed_password}")
 
 

@@ -16,7 +16,7 @@ from shared.models.identity import User
 from shared.models.incident import Incident
 from shared.models.organization import Organization
 from shared.models.personnel import (
-    PersonnelStatusEvent, PersonnelStatusRow, Unit, UnitStatusRow,
+    PersonnelStatusEvent, PersonnelStatusRow, Unit, UnitStatusEvent, UnitStatusRow,
 )
 
 
@@ -109,8 +109,13 @@ class DispatchService:
 
     def release(self, assignment_id: uuid.UUID, actor_id: uuid.UUID) -> None:
         a = self.db.get(DispatchAssignment, assignment_id)
-        if a:
+        if a and a.released_at is None:
             a.released_at = datetime.now(UTC)
+            # Free the unit / person, mirroring shared.services.dispatch.release
+            if a.unit_id:
+                self._set_unit_status(a.unit_id, UnitStatus.in_quarters, actor_id, None)
+            if a.user_id:
+                self._set_personnel_status(a.user_id, PersonnelStatus.available, actor_id, None)
             self.db.flush()
             log_sync(self.db, actor_id=actor_id, action="dispatch.released",
                      resource_type="dispatch_assignment", resource_id=assignment_id)

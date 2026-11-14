@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.audit import log_async
@@ -136,11 +136,19 @@ async def respond(
 async def release(
     db: AsyncSession, *, assignment_id: uuid.UUID, actor_id: uuid.UUID
 ) -> None:
-    await db.execute(
-        update(DispatchAssignment)
-        .where(DispatchAssignment.id == assignment_id)
-        .values(released_at=datetime.now(UTC))
-    )
+    """End an assignment and make the unit / person available again."""
+    assignment = await db.get(DispatchAssignment, assignment_id)
+    if assignment is None or assignment.released_at is not None:
+        return
+    assignment.released_at = datetime.now(UTC)
+
+    if assignment.unit_id:
+        await _set_unit_status(db, assignment.unit_id, UnitStatus.in_quarters,
+                               actor_id, None, "Released")
+    if assignment.user_id:
+        await _set_personnel_status(db, assignment.user_id, PersonnelStatus.available,
+                                    actor_id, None, "Released")
+
     await db.flush()
     await log_async(
         db,

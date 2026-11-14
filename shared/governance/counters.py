@@ -14,25 +14,32 @@ from datetime import UTC, datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.cache import get_redis, safe_call
+from shared.cache import get_redis
 
 log = logging.getLogger(__name__)
 
+# Returns {0, i} when cap number i is already full (nothing is incremented),
+# otherwise {1, count_1, count_2, ...} after incrementing every counter.
+# A normal return value is used for "full" on purpose: a Lua error would look
+# exactly like a broken Redis to the caller.
 LUA_ACQUIRE = """
 for i = 1, #KEYS do
     local current = tonumber(redis.call('GET', KEYS[i]) or '0')
     local limit = tonumber(ARGV[i])
     if limit > 0 and current >= limit then
-        return { err = 'cap_exceeded:' .. i }
+        return {0, i}
     end
 end
-local results = {}
+local results = {1}
 for i = 1, #KEYS do
-    results[i] = redis.call('INCR', KEYS[i])
+    results[i + 1] = redis.call('INCR', KEYS[i])
     redis.call('EXPIRE', KEYS[i], 172800)
 end
 return results
 """
+
+# Sentinel: Redis answered, and the answer was "a cap is full".
+CAP_EXCEEDED = object()
 
 
 def _bucket_key(kind: str, value: str, day: str) -> str:
@@ -75,25 +82,35 @@ async def try_acquire_caps(
     limits = [limit for _, _, limit in dimensions]
 
     redis_result = _try_redis_lua(keys, limits)
+    if redis_result is CAP_EXCEEDED:
+        return None                       # full: do NOT fall back and approve anyway
     if redis_result is not None:
         return dict(zip((f"{k}:{v}" for k, v, _ in dimensions), redis_result, strict=False))
+
+    # Only reached when Redis itself is unavailable.
 
     return await _postgres_fallback(db, policy_id, dimensions)
 
 
-def _try_redis_lua(keys: list[str], limits: list[int]) -> list[int] | None:
+def _try_redis_lua(keys: list[str], limits: list[int]):
+    """
+    Returns the new counter values, `CAP_EXCEEDED`, or None if Redis is
+    unavailable (not configured, unreachable, or the script failed).
+    """
     c = get_redis()
     if c is None:
         return None
     try:
         script = c.register_script(LUA_ACQUIRE)
         result = script(keys=keys, args=limits)
-        if isinstance(result, list):
-            return [int(x) for x in result]
-        return None
     except Exception as exc:
-        log.debug("Redis Lua failed: %s", exc)
+        log.warning("Redis cap script failed, using Postgres counts: %s", exc)
         return None
+    if not isinstance(result, list) or not result:
+        return None
+    if int(result[0]) == 0:
+        return CAP_EXCEEDED
+    return [int(x) for x in result[1:]]
 
 
 async def _postgres_fallback(
@@ -109,7 +126,7 @@ async def _postgres_fallback(
             "decision = 'approved'",
             "evaluated_at >= date_trunc('day', now())",
         ]
-        params: dict = {"policy": policy_id}
+        params: dict = {"policy": uuid.UUID(str(policy_id))}
         if kind == "region":
             where.append("region_id = :r")
             params["r"] = uuid.UUID(value)

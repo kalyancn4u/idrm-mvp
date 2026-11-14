@@ -89,7 +89,7 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 | GET | `/incidents/{id}/updates` | user | Timeline |
 | POST | `/incidents/{id}/approve` | coordinator | Approve |
 | POST | `/incidents/{id}/reject` | coordinator | Reject |
-| POST | `/incidents/{id}/accept` | provider | Claim |
+| POST | `/incidents/{id}/accept` | provider | Claim — only when `approved` ([ADR-0014](adr/0014-approval-first.md)) |
 | POST | `/incidents/{id}/start` | provider | Start work |
 | POST | `/incidents/{id}/complete` | provider | Mark done |
 | POST | `/incidents/{id}/verify` | citizen | Confirm + rate |
@@ -130,11 +130,17 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/policies` | admin | Create policy |
+| POST | `/policies` | coordinator¹ / admin | Create policy |
 | GET | `/policies` | coordinator+ | List policies |
 | GET | `/decisions` | coordinator+ | List decisions |
 | POST | `/entity-lists` | coordinator+ | Add list entry |
 | GET | `/entity-lists` | coordinator+ | List entries |
+
+¹ A coordinator may create only an incident policy that names at least one
+region (`region_scope`) and has an end time (`effective_to`). Platform-wide or
+open-ended policies need an admin. Body fields: `code`, `name`, `applies_to`,
+`priority`, `region_scope`, `service_types`, `priorities_allowed`,
+`effective_from?`, `effective_to?`, `conditions`, `caps`.
 
 ## Files
 

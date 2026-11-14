@@ -26,7 +26,7 @@ make run                      # API :8000, Console :5000
 | What | Where |
 |---|---|
 | API docs | `http://127.0.0.1:8000/docs` |
-| Console | `http://127.0.0.1:5000/dashboard/login` |
+| Console | `http://127.0.0.1:5000/dashboard/auth/login` |
 | Dispatch | `/dashboard/dispatch` |
 | BigBoard | `/dashboard/bigboard` |
 | Policies | `/dashboard/policies` |
@@ -103,7 +103,7 @@ created ──approve──▶ approved ──accept──▶ accepted ──sta
 |---|---|---|---|
 | `approve` | created | approved | coordinator, admin |
 | `reject` | created, approved | rejected | coordinator, admin |
-| `accept` | created, approved | accepted | provider |
+| `accept` | approved | accepted | provider |
 | `start` | accepted | in_progress | provider |
 | `complete` | in_progress | completed | provider |
 | `verify` | completed | verified | citizen |

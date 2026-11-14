@@ -34,7 +34,10 @@ PERMISSIONS: dict[str, set[str]] = {
         "view.logistics", "act.logistics",
         "view.ics", "act.ics",
         "view.alerts", "act.alerts",
-        "view.policies",
+        # Coordinators switch regional auto-approval on and off and manage
+        # entity lists. Platform-wide policies stay admin-only (see the
+        # policies blueprint).
+        "view.policies", "act.policies",
         "view.audit", "view.reports", "export.data",
     },
 }

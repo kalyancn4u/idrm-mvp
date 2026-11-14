@@ -399,7 +399,7 @@ git clone <repo> idrm-mvp && cd idrm-mvp
 bash scripts/bootstrap.sh
 make run
 # Open http://127.0.0.1:8000/docs      (API)
-# Open http://127.0.0.1:5000/dashboard/login   (Console)
+# Open http://127.0.0.1:5000/dashboard/auth/login   (Console)
 # Log in as admin@idrm.local / Admin#2026
 ```
 

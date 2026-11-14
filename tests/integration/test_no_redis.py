@@ -2,26 +2,28 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 
-@pytest.mark.asyncio
-async def test_health_without_redis(monkeypatch):
-    monkeypatch.setenv("REDIS_URL", "")
-
+def test_empty_redis_url_disables_the_cache(monkeypatch):
     from shared.cache import get_redis, reset_availability
+    from shared.config import get_settings
+
+    monkeypatch.setenv("REDIS_URL", "")
+    get_settings.cache_clear()
     reset_availability()
 
     assert get_redis() is None
 
-    # The app still responds
-    from httpx import ASGITransport, AsyncClient
 
-    from app.main import app
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        r = await c.get("/api/v1/health")
-        assert r.status_code == 200
+@pytest.mark.pg
+async def test_health_without_redis(client, monkeypatch):
+    from shared.cache import reset_availability
+    from shared.config import get_settings
 
+    monkeypatch.setenv("REDIS_URL", "")
+    get_settings.cache_clear()
+    reset_availability()
+
+    r = await client.get("/api/v1/health")
+    assert r.status_code == 200

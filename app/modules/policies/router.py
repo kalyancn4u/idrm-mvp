@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -14,7 +15,15 @@ from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
 from shared.db import async_session
-from shared.enums import AppliesTo, EntityType, ListEffect, ListType
+from pydantic import ValidationError
+
+from shared import cache
+from shared.audit import log_async
+from shared.enums import (
+    AppliesTo, DecisionKind, EntityType, ListEffect, ListType, Priority, ServiceType,
+)
+from shared.governance.evaluator import _unsupported_conditions
+from shared.governance.schema import validate_policy
 from shared.models.governance import AutoApprovalDecision, AutoApprovalPolicy, EntityList
 
 router = APIRouter()
@@ -29,10 +38,21 @@ class PolicyCreate(BaseModel):
     applies_to: AppliesTo
     priority: int = 100
     region_scope: list[uuid.UUID] = []
-    service_types: list[str] = []
-    priorities_allowed: list[str] = []
+    service_types: list[ServiceType] = []
+    priorities_allowed: list[Priority] = []
+    # The period the policy is in force. Outside it the engine ignores the
+    # policy and requests go back to waiting for a coordinator.
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
     conditions: dict = {}
     caps: dict = {}
+
+
+def _aware(value: datetime | None) -> datetime | None:
+    """A time sent without a timezone is taken to be UTC."""
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 class EntityListCreate(BaseModel):
@@ -47,17 +67,66 @@ class EntityListCreate(BaseModel):
 @router.post("/policies", status_code=status.HTTP_201_CREATED)
 async def create_policy(
     body: PolicyCreate, db: DbSession,
-    claims: Annotated[dict, Depends(require_role("admin"))],
+    claims: Annotated[dict, Depends(require_role("coordinator", "admin"))],
 ):
+    now = datetime.now(UTC)
+    start = _aware(body.effective_from) or now
+    end = _aware(body.effective_to)
+    if end is not None and end <= max(start, now):
+        raise AppError(422, "validation_error",
+                       "effective_to must be in the future and after effective_from.")
+
+    # An admin may write any policy. A coordinator may only switch on
+    # auto-approval of help requests for named regions and a fixed period —
+    # the "this flood, this district, until Friday" case. Anything open-ended
+    # or platform-wide stays an admin decision.
+    if claims.get("role") == "coordinator":
+        problems = []
+        if body.applies_to != AppliesTo.incident:
+            problems.append("applies_to must be 'incident'")
+        if not body.region_scope:
+            problems.append("region_scope must name at least one region")
+        if end is None:
+            problems.append("effective_to (an end time) is required")
+        if problems:
+            raise AppError(403, "forbidden",
+                           "Coordinators may only create region-scoped, time-limited "
+                           "incident policies: " + "; ".join(problems) + ".",
+                           details={"problems": problems})
+
+    # Reject a malformed policy now, rather than store it and have the engine
+    # silently skip it later.
+    try:
+        conditions, caps = validate_policy(body.conditions, body.caps)
+    except ValidationError as exc:
+        raise AppError(422, "validation_error", "Policy conditions or caps are malformed.",
+                       details={"errors": exc.errors(include_url=False, include_context=False)}) from exc
+    unsupported = _unsupported_conditions(conditions)
+    if unsupported:
+        raise AppError(422, "validation_error",
+                       "These conditions are not enforced by the engine yet: "
+                       + ", ".join(unsupported),
+                       details={"unsupported_conditions": unsupported})
+
+    actor = uuid.UUID(claims["sub"])
     p = AutoApprovalPolicy(
         code=body.code, name=body.name, applies_to=body.applies_to,
         priority=body.priority, region_scope=body.region_scope,
         service_types=body.service_types, priorities_allowed=body.priorities_allowed,
-        conditions=body.conditions, caps=body.caps,
-        created_by=uuid.UUID(claims["sub"]),
+        effective_from=_aware(body.effective_from), effective_to=end,
+        conditions=conditions, caps=caps,
+        created_by=actor,
     )
     db.add(p)
     await db.flush()
+    await log_async(db, actor_id=actor, action="policy.created",
+                    resource_type="auto_approval_policy", resource_id=p.id,
+                    new_values={"code": p.code, "applies_to": body.applies_to.value,
+                                "region_scope": [str(r) for r in body.region_scope],
+                                "effective_from": p.effective_from.isoformat() if p.effective_from else None,
+                                "effective_to": p.effective_to.isoformat() if p.effective_to else None,
+                                "conditions": conditions, "caps": caps})
+    cache.invalidate("policies:*")
     return {"id": str(p.id), "code": p.code}
 
 
@@ -65,7 +134,7 @@ async def create_policy(
 async def list_policies(
     db: DbSession,
     _: Annotated[dict, Depends(require_role("coordinator", "admin"))],
-    applies_to: str | None = None,
+    applies_to: AppliesTo | None = None,
 ):
     stmt = select(AutoApprovalPolicy)
     if applies_to:
@@ -75,6 +144,9 @@ async def list_policies(
         {"id": str(p.id), "code": p.code, "name": p.name,
          "applies_to": p.applies_to.value if hasattr(p.applies_to, "value") else p.applies_to,
          "priority": p.priority, "active": p.active,
+         "region_scope": [str(r) for r in (p.region_scope or [])],
+         "effective_from": p.effective_from.isoformat() if p.effective_from else None,
+         "effective_to": p.effective_to.isoformat() if p.effective_to else None,
          "conditions": p.conditions, "caps": p.caps}
         for p in rows
     ]}
@@ -86,8 +158,8 @@ async def list_decisions(
     _: Annotated[dict, Depends(require_role("coordinator", "admin"))],
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    subject_type: str | None = None,
-    decision: str | None = None,
+    subject_type: AppliesTo | None = None,
+    decision: DecisionKind | None = None,
 ):
     conditions = []
     if subject_type:
@@ -136,6 +208,13 @@ async def create_list_entry(
     )
     db.add(e)
     await db.flush()
+    await log_async(db, actor_id=uuid.UUID(claims["sub"]), action="entity_list.created",
+                    resource_type="entity_list", resource_id=e.id,
+                    new_values={"entity_type": body.entity_type.value,
+                                "entity_value": body.entity_value,
+                                "list_type": body.list_type.value,
+                                "effect": body.effect.value})
+    cache.invalidate(f"entity_lists:{body.entity_type.value}:*")
     return {"id": str(e.id)}
 
 
@@ -143,7 +222,7 @@ async def create_list_entry(
 async def list_entity_lists(
     db: DbSession,
     _: Annotated[dict, Depends(require_role("coordinator", "admin"))],
-    entity_type: str | None = None,
+    entity_type: EntityType | None = None,
 ):
     stmt = select(EntityList).where(EntityList.active.is_(True))
     if entity_type:

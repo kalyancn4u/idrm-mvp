@@ -37,7 +37,15 @@ def ensure_bucket() -> None:
 
 
 def build_object_key(purpose: str, filename: str) -> str:
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    """
+    Storage path for an upload: `<purpose>/<random uuid>.<ext>`.
+
+    The filename comes from the uploader, so nothing of it is trusted except
+    a short alphanumeric extension. That keeps "/" and ".." out of the key.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if not (ext.isascii() and ext.isalnum() and len(ext) <= 8):
+        ext = "bin"
     return f"{purpose}/{uuid.uuid4()}.{ext}"
 
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 
 def test_login_page_public(dash_client):
-    r = dash_client.get("/dashboard/login")
+    r = dash_client.get("/dashboard/auth/login")
     assert r.status_code == 200
     assert b"Staff Console" in r.data
 
@@ -15,10 +17,17 @@ def test_dashboard_redirects_anonymous(dash_client):
     assert "/dashboard/auth/login" in r.headers["Location"]
 
 
+@pytest.mark.pg
 def test_wrong_credentials_rejected(dash_client):
     r = dash_client.post("/dashboard/auth/login",
                          data={"email": "nobody@x.example", "password": "wrong"})
     assert r.status_code == 401
+
+
+def test_bad_page_number_is_not_a_server_error(dash_client):
+    """`?page=abc` on a protected list still just redirects to login."""
+    r = dash_client.get("/dashboard/incidents/?page=abc")
+    assert r.status_code == 302
 
 
 def test_citizen_role_cannot_log_in(dash_app):
@@ -27,4 +36,3 @@ def test_citizen_role_cannot_log_in(dash_app):
     assert "citizen" not in allowed
     assert "coordinator" in allowed
     assert "admin" in allowed
-

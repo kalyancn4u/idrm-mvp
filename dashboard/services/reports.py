@@ -18,6 +18,7 @@ class ReportService:
                        count(*) FILTER (WHERE status = 'verified') AS verified
                   FROM incidents
                  WHERE created_at > now() - make_interval(days => :d)
+                   AND deleted_at IS NULL
                  GROUP BY day ORDER BY day DESC
                 """
             ),
@@ -26,6 +27,7 @@ class ReportService:
         return [dict(r) for r in rows]
 
     def response_times(self, days: int = 30) -> list[dict]:
+        """Average minutes from creation to the citizen's verification, per day."""
         rows = self.db.execute(
             text(
                 """
@@ -34,6 +36,7 @@ class ReportService:
                          FILTER (WHERE verified_at IS NOT NULL) AS avg_minutes
                   FROM incidents
                  WHERE created_at > now() - make_interval(days => :d)
+                   AND deleted_at IS NULL
                  GROUP BY day ORDER BY day DESC
                 """
             ),
@@ -50,6 +53,7 @@ class ReportService:
                        count(i.id) FILTER (WHERE i.status = 'verified') AS verified
                   FROM organizations o
                   LEFT JOIN incidents i ON i.assigned_organization_id = o.id
+                                       AND i.deleted_at IS NULL
                  WHERE o.deleted_at IS NULL
                  GROUP BY o.id
                  ORDER BY verified DESC, assigned DESC

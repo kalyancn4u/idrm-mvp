@@ -13,7 +13,7 @@ make run        # both apps up
 
 Open two browser tabs:
 1. `http://127.0.0.1:8000/docs` — API (cool slate)
-2. `http://127.0.0.1:5000/dashboard/login` — Console (warm saffron)
+2. `http://127.0.0.1:5000/dashboard/auth/login` — Console (warm saffron)
 
 ---
 

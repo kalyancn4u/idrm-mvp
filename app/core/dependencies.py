@@ -13,7 +13,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
+from shared.config import get_settings
 from shared.db import async_session
+from shared.rate_limit import allow
 from shared.security import decode_token
 from shared.sessions import SecurityError, validate_claims
 
@@ -88,8 +90,29 @@ def require_role(*roles: str):
 
 
 def client_ip(request: Request) -> str:
-    fwd = request.headers.get("X-Forwarded-For")
-    if fwd:
-        return fwd.split(",")[0].strip()
+    """
+    The caller's address.
+
+    `X-Forwarded-For` is written by whoever sends the request, so it is only
+    believed when TRUST_FORWARDED_FOR says a proxy we control sets it.
+    """
+    if get_settings().trust_forwarded_for:
+        fwd = request.headers.get("X-Forwarded-For")
+        if fwd:
+            return fwd.split(",")[0].strip()
     return request.client.host if request.client else "-"
 
+
+def rate_limit(name: str, limit: int, per_seconds: int = 60):
+    """Dependency: at most `limit` calls per window, counted per client address."""
+
+    async def _dep(request: Request) -> None:
+        if not allow(name, client_ip(request), limit, per_seconds):
+            raise AppError(
+                429,
+                "rate_limited",
+                f"Too many requests. Try again in {per_seconds}s.",
+                details={"limit": limit, "window_seconds": per_seconds},
+            )
+
+    return _dep

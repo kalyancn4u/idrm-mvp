@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 
-@pytest.mark.asyncio
+@pytest.mark.pg
 async def test_guest_can_create_incident(client):
     """Unauthenticated requests are allowed and receive a tracking token."""
     payload = {
@@ -15,13 +15,15 @@ async def test_guest_can_create_incident(client):
         "location": {"latitude": 17.3850, "longitude": 78.4867},
     }
     r = await client.post("/api/v1/incidents", json=payload)
-    if r.status_code == 201:
-        body = r.json()
-        assert body["tracking_token"]
-        assert body["requester_id"] is None
+    assert r.status_code == 201
+    body = r.json()
+    assert body["tracking_token"]
+    assert body["requester_id"] is None
+    # Coordinates come back as sent (they used to be null).
+    assert body["latitude"] == pytest.approx(17.3850)
+    assert body["longitude"] == pytest.approx(78.4867)
 
 
-@pytest.mark.asyncio
 async def test_short_description_rejected(client):
     r = await client.post(
         "/api/v1/incidents",
@@ -35,15 +37,24 @@ async def test_short_description_rejected(client):
     assert r.status_code == 422
 
 
-@pytest.mark.asyncio
 async def test_list_incidents_requires_auth(client):
     r = await client.get("/api/v1/incidents")
     assert r.status_code == 401
 
 
-@pytest.mark.asyncio
+async def test_nearby_is_reachable(client):
+    """`/incidents/nearby` must reach its own handler (401), not be read as an id (422)."""
+    r = await client.get("/api/v1/incidents/nearby?latitude=17.4&longitude=78.5")
+    assert r.status_code == 401
+
+
+async def test_incident_detail_requires_auth(client):
+    r = await client.get("/api/v1/incidents/00000000-0000-4000-8000-000000000001")
+    assert r.status_code == 401
+
+
+@pytest.mark.pg
 async def test_track_by_token_public(client):
-    """The guest tracking endpoint is public."""
+    """The guest tracking endpoint is public; an unknown token is a 404."""
     r = await client.get("/api/v1/incidents/track/nonexistent-token")
-    # 404 is the expected response for an unknown token
-    assert r.status_code in (404, 500)
+    assert r.status_code == 404

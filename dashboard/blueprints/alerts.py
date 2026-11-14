@@ -17,7 +17,7 @@ alerts_bp = Blueprint("alerts", __name__, template_folder="../templates")
 @alerts_bp.route("/")
 @login_required
 def list_view():
-    page = max(1, int(request.args.get("page", 1)))
+    page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
     rows, total = AlertService(db.session).list(
         page=page, limit=limit, active_only=request.args.get("all") != "1"

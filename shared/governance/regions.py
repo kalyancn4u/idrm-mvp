@@ -10,7 +10,12 @@ from shared.cache import cached
 
 @cached("region_at:{lat}:{lng}", ttl=300)
 async def find_region(db: AsyncSession, lat: float, lng: float) -> dict | None:
-    """Return the region covering a point, or None if none does."""
+    """
+    Return the region covering a point, or None if none does.
+
+    `id` is returned as a string: results are cached as JSON, which has no
+    UUID type, and callers must see the same shape with or without the cache.
+    """
     stmt = text(
         """
         SELECT id, code, name
@@ -21,4 +26,6 @@ async def find_region(db: AsyncSession, lat: float, lng: float) -> dict | None:
         """
     )
     row = (await db.execute(stmt, {"lat": lat, "lng": lng})).mappings().first()
-    return dict(row) if row else None
+    if row is None:
+        return None
+    return {"id": str(row["id"]), "code": row["code"], "name": row["name"]}

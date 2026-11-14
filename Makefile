@@ -5,6 +5,7 @@
 SHELL          := /bin/bash
 .DEFAULT_GOAL  := help
 
+PYTHON         ?= python3
 VENV           := .venv
 VENV_BIN       := $(VENV)/bin
 PY             := $(VENV_BIN)/python
@@ -20,7 +21,11 @@ PGPORT         ?= 5432
 PGUSER         ?= idrm_user
 PGPASSWORD     ?= idrm_pass
 PGDATABASE     ?= idrm_db
-PGMAINT        ?= postgres
+# Role used to create the app role and database.  With docker-compose the
+# container's superuser IS $(PGUSER) (there is no "postgres" role), so that
+# is the default.  For a native install:  make db-create PGMAINT=postgres PGMAINTPASSWORD=...
+PGMAINT        ?= $(PGUSER)
+PGMAINTPASSWORD ?= $(PGPASSWORD)
 export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
 
 DATABASE_URL        ?= postgresql+asyncpg://$(PGUSER):$(PGPASSWORD)@$(PGHOST):$(PGPORT)/$(PGDATABASE)
@@ -28,7 +33,7 @@ DATABASE_URL_SYNC   ?= postgresql+psycopg2://$(PGUSER):$(PGPASSWORD)@$(PGHOST):$
 export DATABASE_URL DATABASE_URL_SYNC
 
 PSQL           := PGPASSWORD=$(PGPASSWORD) psql -h $(PGHOST) -p $(PGPORT) -U $(PGUSER) -d $(PGDATABASE) -v ON_ERROR_STOP=1
-PSQL_MAINT     := PGPASSWORD=$(PGPASSWORD) psql -h $(PGHOST) -p $(PGPORT) -U $(PGMAINT) -d postgres -v ON_ERROR_STOP=1
+PSQL_MAINT     := PGPASSWORD=$(PGMAINTPASSWORD) psql -h $(PGHOST) -p $(PGPORT) -U $(PGMAINT) -v ON_ERROR_STOP=1
 
 API_PORT       ?= 8000
 DASH_PORT      ?= 5000
@@ -67,11 +72,11 @@ infra-down:
 	@docker compose down
 
 db-create:
-	@$(PSQL_MAINT) -tc "SELECT 1 FROM pg_roles WHERE rolname='$(PGUSER)'" | grep -q 1 || \
-	  $(PSQL_MAINT) -c "CREATE ROLE $(PGUSER) LOGIN PASSWORD '$(PGPASSWORD)';"
-	@$(PSQL_MAINT) -tc "SELECT 1 FROM pg_database WHERE datname='$(PGDATABASE)'" | grep -q 1 || \
-	  $(PSQL_MAINT) -c "CREATE DATABASE $(PGDATABASE) OWNER $(PGUSER);"
-	@$(PSQL_MAINT) -c "CREATE EXTENSION IF NOT EXISTS postgis;" -d $(PGDATABASE) 2>/dev/null || true
+	@$(PSQL_MAINT) -d postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='$(PGUSER)'" | grep -q 1 || \
+	  $(PSQL_MAINT) -d postgres -c "CREATE ROLE $(PGUSER) LOGIN PASSWORD '$(PGPASSWORD)';"
+	@$(PSQL_MAINT) -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='$(PGDATABASE)'" | grep -q 1 || \
+	  $(PSQL_MAINT) -d postgres -c "CREATE DATABASE $(PGDATABASE) OWNER $(PGUSER);"
+	@$(PSQL_MAINT) -d $(PGDATABASE) -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 # ---- Schema + data -----------------------------------------------------------
 migrate:

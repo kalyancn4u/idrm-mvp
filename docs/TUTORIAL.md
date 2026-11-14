@@ -23,7 +23,7 @@ for curl commands.
 Open two browser tabs:
 
 - **API**: http://127.0.0.1:8000/docs
-- **Console**: http://127.0.0.1:5000/dashboard/login
+- **Console**: http://127.0.0.1:5000/dashboard/auth/login
 
 Notice the difference: the API is on a **cool slate** background; the console
 is on a **warm saffron** one. This is not decoration — it tells you which app

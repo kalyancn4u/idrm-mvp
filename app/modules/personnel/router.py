@@ -10,7 +10,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authz import is_staff, is_unit_member
 from app.core.dependencies import get_current_claims, get_db, require_role
+from app.core.exceptions import AppError
 from shared.db import async_session
 from shared.enums import PersonnelStatus, UnitStatus
 from shared.models.personnel import PersonnelStatusRow, Unit, UnitStatusRow
@@ -130,6 +132,8 @@ async def set_unit_status(
     unit_id: uuid.UUID, body: UnitStatusBody, db: DbSession,
     claims: Annotated[dict, Depends(require_role("coordinator", "admin", "provider"))],
 ):
+    if not is_staff(claims) and not await is_unit_member(db, uuid.UUID(claims["sub"]), unit_id):
+        raise AppError(403, "forbidden", "You are not a member of this unit.")
     row = await units_svc.set_status(
         db, unit_id=unit_id, status=body.status, actor_id=uuid.UUID(claims["sub"]),
         incident_id=body.incident_id, latitude=body.latitude,

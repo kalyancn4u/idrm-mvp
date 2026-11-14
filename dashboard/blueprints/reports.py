@@ -18,7 +18,7 @@ reports_bp = Blueprint("reports", __name__, template_folder="../templates")
 @reports_bp.route("/")
 @login_required
 def index():
-    days = int(request.args.get("days", 30))
+    days = min(365, max(1, request.args.get("days", 30, type=int)))
     svc = ReportService(db.session)
     return render_template(
         "reports/index.html",

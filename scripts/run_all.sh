@@ -22,7 +22,7 @@ echo -e "${CYAN}▶ API       http://127.0.0.1:${API_PORT}/docs${RESET}"
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "$API_PORT" --reload &
 API_PID=$!
 
-echo -e "${CYAN}▶ DASHBOARD http://127.0.0.1:${DASH_PORT}/dashboard/login${RESET}"
+echo -e "${CYAN}▶ DASHBOARD http://127.0.0.1:${DASH_PORT}/dashboard/auth/login${RESET}"
 FLASK_APP=dashboard:create_dashboard FLASK_DEBUG=1 \
   .venv/bin/flask run --host 0.0.0.0 --port "$DASH_PORT" &
 DASH_PID=$!

@@ -1,9 +1,12 @@
 """
-In-process token-bucket rate limiter with Postgres fallback.
+Rate limiter — framework-free.
 
-Fast path: Redis INCR. If Redis is unavailable, events are counted from
-`rate_limit_events` in Postgres. Every decision (allowed or denied) is
-written to Postgres asynchronously.
+Fast path: a fixed-window counter in Redis (atomic INCR). If Redis is
+unavailable, an in-process token bucket is used instead, which limits each
+worker process separately.
+
+The FastAPI dependency that turns a denial into HTTP 429 lives in
+`app/core/dependencies.py`, so that `shared/` never imports from `app/`.
 """
 
 from __future__ import annotations
@@ -11,10 +14,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-import uuid
 from dataclasses import dataclass, field
-
-from fastapi import Request
 
 from shared.cache import safe_call
 
@@ -97,28 +97,3 @@ def _redis_allow(
 def reset_rate_limits() -> None:
     """Test helper — clear in-process state."""
     _inproc.reset()
-
-
-# ---------------------------------------------------------------------------
-# FastAPI dependency factory
-# ---------------------------------------------------------------------------
-def rate_limit(name: str, limit: int, per_seconds: int = 60):
-    from fastapi import Depends
-
-    from app.core.dependencies import client_ip
-
-    async def _dep(request: Request) -> None:
-        # Use the auth header if present; otherwise the client IP.
-        auth = request.headers.get("Authorization")
-        identity = auth[-32:] if auth else (client_ip(request) or "anon")
-        if not allow(name, identity, limit, per_seconds):
-            from app.core.exceptions import AppError
-
-            raise AppError(
-                429,
-                "rate_limited",
-                f"Too many requests. Try again in {per_seconds}s.",
-                details={"limit": limit, "window_seconds": per_seconds},
-            )
-
-    return _dep

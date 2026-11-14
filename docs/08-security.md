@@ -56,7 +56,8 @@ invalidated on the next request.
 | accept/start/complete | ❌ | ✅ | ❌ | ❌ |
 | approve/reject | ❌ | ❌ | ✅ | ✅ |
 | view all incidents | ❌ | ✅ | ✅ | ✅ |
-| manage policies | ❌ | ❌ | ❌ | ✅ |
+| create a region-scoped, time-limited incident policy | ❌ | ❌ | ✅ | ✅ |
+| create any other policy | ❌ | ❌ | ❌ | ✅ |
 
 ### Dashboard roles
 

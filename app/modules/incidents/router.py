@@ -14,18 +14,20 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
-    get_current_claims, get_db, get_optional_claims, require_role,
+    get_current_claims, get_db, get_optional_claims, rate_limit, require_role,
 )
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
-from app.modules.incidents.lifecycle import can_transition, next_status, role_allowed
+from app.core.authz import is_org_member, member_org_ids
 from shared.audit import log_async
 from shared.db import async_session
 from shared.enums import AppliesTo, IncidentStatus, Priority, ServiceType
+from shared.geo import point_lat_lng
 from shared.governance import entity_lists, evaluator
+from shared.governance.regions import find_region
+from shared.lifecycle import can_transition, next_status, role_allowed
 from shared.models.identity import User
 from shared.models.incident import Incident, IncidentUpdate
-from shared.rate_limit import rate_limit
 
 router = APIRouter()
 
@@ -58,14 +60,7 @@ def _point(lat: float, lng: float) -> WKTElement:
 
 
 def _to_response(i: Incident) -> dict:
-    lat = lng = None
-    if i.location is not None:
-        try:
-            from geoalchemy2.shape import to_shape
-            pt = to_shape(i.location)
-            lat, lng = pt.y, pt.x
-        except Exception:
-            pass
+    lat, lng = point_lat_lng(i.location)
     return {
         "id": str(i.id),
         "service_type": i.service_type.value if hasattr(i.service_type, "value") else i.service_type,
@@ -100,6 +95,7 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
     requester_id = uuid.UUID(claims["sub"]) if claims else None
     if claims and claims.get("role") == "provider":
         raise AppError(403, "forbidden", "Providers cannot raise help requests.")
+    trust_score = 0
 
     # Entity list check on the requester's email (if logged in)
     if claims:
@@ -110,6 +106,11 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
         )
         if not check["allowed"]:
             raise AppError(403, "forbidden", "Your account is blocked from creating requests.")
+        trust_score = user.trust_score if user else 0
+
+    # Which region is this point in? Stored on the incident so reports and
+    # region-based views can find it.
+    region = await find_region(db, data.location.latitude, data.location.longitude)
 
     incident = Incident(
         service_type=data.service_type,
@@ -117,6 +118,7 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
         status=IncidentStatus.created,
         description=data.description,
         location=_point(data.location.latitude, data.location.longitude),
+        region_id=uuid.UUID(str(region["id"])) if region else None,
         requester_id=requester_id,
         guest_contact=data.guest_contact if requester_id is None else None,
         tracking_token=secrets.token_urlsafe(24) if requester_id is None else None,
@@ -141,7 +143,7 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
             "service_type": data.service_type.value,
             "priority": data.priority.value,
             "requester_id": requester_id,
-            "requester_trust_score": 0,
+            "requester_trust_score": trust_score,
         },
     )
     if decision.decision.value == "approved":
@@ -163,9 +165,9 @@ async def list_incidents(
     claims: Claims,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    status_filter: str | None = Query(None, alias="status"),
-    service_type: str | None = None,
-    priority: str | None = None,
+    status_filter: IncidentStatus | None = Query(None, alias="status"),
+    service_type: ServiceType | None = None,
+    priority: Priority | None = None,
     q: str | None = None,
 ):
     role = claims.get("role")
@@ -231,24 +233,63 @@ async def track_guest(token: str, db: DbSession):
     return _to_response(incident)
 
 
-@router.get("/incidents/{incident_id}")
-async def get_incident(incident_id: uuid.UUID, db: DbSession, claims: OptClaims):
-    incident = await db.get(Incident, incident_id)
-    if incident is None:
-        raise AppError(404, "not_found", "Incident not found.")
-    if claims is None:
-        raise AppError(401, "unauthorized", "Authentication required.")
+@router.get("/incidents/nearby")
+async def nearby_incidents(
+    db: DbSession,
+    _: Annotated[dict, Depends(require_role("provider", "coordinator", "admin"))],
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    radius_km: float = Query(10, gt=0, le=200),
+    service_type: ServiceType | None = None,
+):
+    # Declared BEFORE /incidents/{incident_id}: routes match in order, and
+    # otherwise the word "nearby" is read as an incident id.
+    #
+    # The ::geography casts make ST_DWithin measure in METRES. On plain
+    # geometry (SRID 4326) the distance would be in degrees.
+    conditions = [
+        Incident.deleted_at.is_(None),
+        Incident.status.in_([IncidentStatus.created, IncidentStatus.approved,
+                             IncidentStatus.accepted, IncidentStatus.in_progress]),
+        text(
+            "ST_DWithin(location::geography, "
+            "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :r)"
+        ),
+    ]
+    params = {"lng": longitude, "lat": latitude, "r": radius_km * 1000}
+    if service_type:
+        conditions.append(Incident.service_type == service_type)
+
+    stmt = select(Incident).where(*conditions).limit(100)
+    rows = list((await db.execute(stmt, params)).scalars().all())
+    return {"data": [_to_response(i) for i in rows]}
+
+
+def _may_view(incident: Incident, claims: dict) -> bool:
+    """Staff and providers see every request; a citizen sees only their own."""
     role = claims.get("role")
-    uid = uuid.UUID(claims["sub"])
     if role in ("coordinator", "admin", "provider"):
-        return _to_response(incident)
-    if role == "citizen" and incident.requester_id == uid:
-        return _to_response(incident)
-    raise AppError(403, "forbidden", "You may not view this request.")
+        return True
+    return role == "citizen" and incident.requester_id == uuid.UUID(claims["sub"])
+
+
+async def _load_viewable(db: AsyncSession, incident_id: uuid.UUID, claims: dict) -> Incident:
+    incident = await db.get(Incident, incident_id)
+    if incident is None or incident.deleted_at is not None:
+        raise AppError(404, "not_found", "Incident not found.")
+    if not _may_view(incident, claims):
+        raise AppError(403, "forbidden", "You may not view this request.")
+    return incident
+
+
+@router.get("/incidents/{incident_id}")
+async def get_incident(incident_id: uuid.UUID, db: DbSession, claims: Claims):
+    return _to_response(await _load_viewable(db, incident_id, claims))
 
 
 @router.get("/incidents/{incident_id}/updates")
 async def get_updates(incident_id: uuid.UUID, db: DbSession, claims: Claims):
+    await _load_viewable(db, incident_id, claims)   # same rule as the incident itself
     rows = list((await db.execute(
         select(IncidentUpdate).where(IncidentUpdate.incident_id == incident_id)
         .order_by(IncidentUpdate.created_at.asc())
@@ -267,28 +308,47 @@ async def get_updates(incident_id: uuid.UUID, db: DbSession, claims: Claims):
 async def _do_transition(
     db: AsyncSession, incident_id: uuid.UUID, action: str, claims: dict, payload: dict,
 ) -> Incident:
-    incident = await db.get(Incident, incident_id)
-    if incident is None:
+    # FOR UPDATE: two people acting on the same request at once are made to
+    # queue, so e.g. two providers cannot both claim it.
+    incident = await db.get(Incident, incident_id, with_for_update=True)
+    if incident is None or incident.deleted_at is not None:
         raise AppError(404, "not_found", "Incident not found.")
 
     role = claims.get("role")
     actor_id = uuid.UUID(claims["sub"])
 
+    # 1. Is this KIND of user allowed to do this at all?
     if not role_allowed(action, role):
         raise AppError(403, "forbidden", f"Role '{role}' may not {action}.")
 
+    # 2. Is it legal from the current state?
     current = incident.status if isinstance(incident.status, IncidentStatus) else IncidentStatus(incident.status)
-
     if not can_transition(action, current):
         raise AppError(409, "invalid_transition",
                        f"Cannot {action} from '{current.value}'.",
                        details={"current_status": current.value})
 
-    if action == "accept" and incident.assigned_organization_id is not None:
-        raise AppError(409, "already_accepted", "This request has already been claimed.")
+    # 3. Is it THIS user's request / organization?
+    if role == "citizen" and incident.requester_id != actor_id:
+        raise AppError(403, "forbidden", "This is not your request.")
 
-    if action == "verify" and incident.requester_id != actor_id:
-        raise AppError(403, "forbidden", "Only the requester may verify.")
+    if action == "accept":
+        if incident.assigned_organization_id is not None:
+            raise AppError(409, "already_accepted", "This request has already been claimed.")
+        org_ids = await member_org_ids(db, actor_id)
+        if not org_ids:
+            raise AppError(403, "forbidden",
+                           "Register or join an organization before claiming requests.")
+        org_id = payload.get("organization_id") or org_ids[0]
+        if org_id not in org_ids:
+            raise AppError(403, "forbidden", "You do not belong to that organization.")
+        incident.assigned_organization_id = org_id
+
+    if action in ("start", "complete") and not await is_org_member(
+        db, actor_id, incident.assigned_organization_id
+    ):
+        raise AppError(403, "forbidden",
+                       "Only the organization that claimed this request may do that.")
 
     new_status = next_status(action)
     old_status = current
@@ -358,30 +418,3 @@ async def verify(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Clai
 @router.post("/incidents/{incident_id}/cancel")
 async def cancel(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
     return _to_response(await _do_transition(db, incident_id, "cancel", claims, body.model_dump()))
-
-
-@router.get("/incidents/nearby")
-async def nearby_incidents(
-    db: DbSession,
-    _: Annotated[dict, Depends(require_role("provider", "coordinator", "admin"))],
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(10, gt=0, le=200),
-    service_type: str | None = None,
-):
-    conditions = [
-        Incident.deleted_at.is_(None),
-        Incident.status.in_([IncidentStatus.created, IncidentStatus.approved,
-                             IncidentStatus.accepted, IncidentStatus.in_progress]),
-        text(
-            "ST_DWithin(location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326), :r)"
-        ),
-    ]
-    params = {"lng": longitude, "lat": latitude, "r": radius_km * 1000}
-    if service_type:
-        conditions.append(Incident.service_type == service_type)
-
-    stmt = select(Incident).where(*conditions).limit(100)
-    rows = list((await db.execute(stmt, params)).scalars().all())
-    return {"data": [_to_response(i) for i in rows]}
-

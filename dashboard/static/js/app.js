@@ -35,6 +35,17 @@
     });
   }
 
+  function initAlertClose() {
+    // The page's Content-Security-Policy blocks inline onclick="", so the
+    // close button is wired up here instead.
+    document.querySelectorAll('[data-dismiss-alert]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const alert = btn.closest('.alert');
+        if (alert) alert.remove();
+      });
+    });
+  }
+
   function initDispatchSelection() {
     // Incident selection highlights + persists via URL
     document.querySelectorAll('.incident-card[data-incident-id]').forEach((card) => {
@@ -70,6 +81,7 @@
     initSidebar();
     initConfirms();
     initFlashDismiss();
+    initAlertClose();
     initDispatchSelection();
     initBigBoardRefresh();
   }

@@ -103,7 +103,7 @@ async def list_orgs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     verified: bool | None = None,
-    service_type: str | None = None,
+    service_type: ServiceType | None = None,
     q: str | None = None,
 ):
     conditions = [Organization.deleted_at.is_(None)]

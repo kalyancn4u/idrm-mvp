@@ -11,9 +11,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authz import is_org_member, is_staff, is_unit_member
 from app.core.dependencies import get_current_claims, get_db, require_role
+from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
 from shared.db import async_session
+from shared.enums import ChatChannelType
 from shared.models.comms import ChatChannel, ChatMessage, Message, Notification
 
 router = APIRouter()
@@ -28,6 +31,14 @@ class MessageCreate(BaseModel):
     body: str = Field(min_length=10)
     target_roles: list[str] = []
     target_users: list[uuid.UUID] = []
+
+
+class ChannelCreate(BaseModel):
+    channel_type: ChatChannelType = ChatChannelType.group
+    organization_id: uuid.UUID | None = None
+    incident_id: uuid.UUID | None = None
+    unit_id: uuid.UUID | None = None
+    name: str | None = Field(default=None, max_length=255)
 
 
 class ChatMessageCreate(BaseModel):
@@ -52,17 +63,44 @@ async def send_message(
 
 
 # ---- Chat ---------------------------------------------------------------------
+async def _may_use_channel(db: AsyncSession, channel: ChatChannel, claims: dict) -> bool:
+    """Staff, the creator, and members of the channel's organization or unit."""
+    uid = uuid.UUID(claims["sub"])
+    if is_staff(claims) or channel.created_by == uid:
+        return True
+    if await is_org_member(db, uid, channel.organization_id):
+        return True
+    return await is_unit_member(db, uid, channel.unit_id)
+
+
+async def _load_channel(db: AsyncSession, channel_id: uuid.UUID, claims: dict) -> ChatChannel:
+    channel = await db.get(ChatChannel, channel_id)
+    if channel is None:
+        raise AppError(404, "not_found", "Channel not found.")
+    if not await _may_use_channel(db, channel, claims):
+        raise AppError(403, "forbidden", "You are not a member of this channel.")
+    return channel
+
+
 @router.post("/chat/channels", status_code=status.HTTP_201_CREATED)
 async def create_channel(
-    payload: dict, db: DbSession, claims: Claims,
+    payload: ChannelCreate, db: DbSession,
+    claims: Annotated[dict, Depends(require_role("provider", "coordinator", "admin"))],
 ):
+    uid = uuid.UUID(claims["sub"])
+    if not is_staff(claims):
+        # A provider may open a channel only inside their own organization / unit.
+        if payload.organization_id and not await is_org_member(db, uid, payload.organization_id):
+            raise AppError(403, "forbidden", "You do not belong to that organization.")
+        if payload.unit_id and not await is_unit_member(db, uid, payload.unit_id):
+            raise AppError(403, "forbidden", "You do not belong to that unit.")
     c = ChatChannel(
-        channel_type=payload.get("channel_type", "group"),
-        organization_id=payload.get("organization_id"),
-        incident_id=payload.get("incident_id"),
-        unit_id=payload.get("unit_id"),
-        name=payload.get("name"),
-        created_by=uuid.UUID(claims["sub"]),
+        channel_type=payload.channel_type,
+        organization_id=payload.organization_id,
+        incident_id=payload.incident_id,
+        unit_id=payload.unit_id,
+        name=payload.name,
+        created_by=uid,
         created_at=datetime.now(UTC),
     )
     db.add(c)
@@ -77,6 +115,7 @@ async def list_chat_messages(
 ):
     from sqlalchemy import func
 
+    await _load_channel(db, channel_id, claims)
     conditions = [ChatMessage.channel_id == channel_id]
     total = (await db.execute(
         select(func.count()).select_from(ChatMessage).where(*conditions)
@@ -99,6 +138,7 @@ async def list_chat_messages(
 async def post_chat_message(
     channel_id: uuid.UUID, body: ChatMessageCreate, db: DbSession, claims: Claims,
 ):
+    await _load_channel(db, channel_id, claims)
     m = ChatMessage(
         channel_id=channel_id, sender_id=uuid.UUID(claims["sub"]),
         body=body.body, sent_at=datetime.now(UTC),

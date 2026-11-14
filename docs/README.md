@@ -61,5 +61,5 @@ SELECT created_at, actor_id, action, resource_type
 
 ## ADRs
 
-See `adr/` — 13 architecture decisions recorded.
+See `adr/` — 14 architecture decisions recorded.
 

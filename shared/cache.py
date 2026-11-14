@@ -8,29 +8,34 @@ the caller falls through to Postgres. The cache is best-effort.
 from __future__ import annotations
 
 import functools
+import inspect
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
 log = logging.getLogger(__name__)
 
 _client = None
-_unavailable = False
+# After a failed connection Redis is left alone until this moment
+# (time.monotonic()), then tried again. 0 means "try now".
+_retry_at = 0.0
+RETRY_AFTER_SECONDS = 30.0
 
 
 def get_redis():
-    """Return a Redis client, or None if not configured / unavailable."""
-    global _client, _unavailable
+    """Return a Redis client, or None if not configured / currently unreachable."""
+    global _client, _retry_at
 
-    if _unavailable:
-        return None
     if _client is not None:
         return _client
+    if time.monotonic() < _retry_at:
+        return None
 
     url = __import__("shared.config", fromlist=["get_settings"]).get_settings().redis_url
     if not url:
-        _unavailable = True
+        _retry_at = float("inf")          # not configured: never retry
         return None
 
     try:
@@ -44,8 +49,9 @@ def get_redis():
         log.info("Redis cache enabled")
         return _client
     except Exception as exc:
-        log.warning("Redis unavailable (%s) — falling back to Postgres", exc)
-        _unavailable = True
+        log.warning("Redis unavailable (%s) — using Postgres; retry in %ss",
+                    exc, int(RETRY_AFTER_SECONDS))
+        _retry_at = time.monotonic() + RETRY_AFTER_SECONDS
         return None
 
 
@@ -63,9 +69,9 @@ def safe_call(method: str, *args, **kwargs) -> Any | None:
 
 def reset_availability() -> None:
     """Test helper — clear the cached unavailable flag."""
-    global _client, _unavailable
+    global _client, _retry_at
     _client = None
-    _unavailable = False
+    _retry_at = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -81,11 +87,17 @@ def cached(key_template: str, ttl: int):
     """
 
     def deco(fn: Callable):
+        signature = inspect.signature(fn)
+
         @functools.wraps(fn)
         async def wrapper(*args, **kwargs):
+            # Work out each argument's NAME, so "{lat}" in the template finds
+            # its value whether the caller wrote f(db, 17.4) or f(db, lat=17.4).
             try:
-                key = "idrm:cache:" + key_template.format(*args, **kwargs)
-            except (IndexError, KeyError):
+                bound = signature.bind(*args, **kwargs)
+                bound.apply_defaults()
+                key = "idrm:cache:" + key_template.format(**bound.arguments)
+            except (TypeError, IndexError, KeyError):
                 return await fn(*args, **kwargs)
 
             raw = safe_call("get", key)

@@ -289,7 +289,7 @@ crafted request cannot bypass it.
 ```bash
 # Get the login page to obtain a session cookie
 curl -s -c /tmp/cookies -b /tmp/cookies \
-  http://localhost:5000/dashboard/login > /dev/null
+  http://localhost:5000/dashboard/auth/login > /dev/null
 
 # Try to POST without the CSRF token
 curl -s -b /tmp/cookies -X POST \
@@ -345,7 +345,7 @@ The limit is 5 per minute per IP (or per bearer token if present).
 ## T12 — Security headers are present
 
 ```bash
-curl -sI http://localhost:5000/dashboard/login | grep -iE '(x-frame|x-content|referrer|content-security)'
+curl -sI http://localhost:5000/dashboard/auth/login | grep -iE '(x-frame|x-content|referrer|content-security)'
 ```
 
 **Expected:**

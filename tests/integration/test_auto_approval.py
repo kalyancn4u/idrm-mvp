@@ -1,68 +1,54 @@
 """
 Auto-approval end-to-end — requires PostgreSQL with the seeded regions
-and policies.
+and policies (`make migrate seed`).
 """
 
 from __future__ import annotations
 
 import pytest
 
+pytestmark = pytest.mark.pg
 
-@pytest.mark.pg
-@pytest.mark.asyncio
+
+def _food_request(lat: float, lng: float, text: str) -> dict:
+    return {
+        "service_type": "food",
+        "priority": "low",
+        "description": text,
+        "location": {"latitude": lat, "longitude": lng},
+    }
+
+
 async def test_auto_approval_on_hyderabad_food_request(client):
     """
-    A low-priority food request inside Hyderabad should be auto-approved
-    by policy IN-TG-HYD-FOOD-WATER-LOW — if the seed data is loaded.
+    A low-priority food request inside Hyderabad is auto-approved by the
+    seeded policy IN-TG-HYD-FOOD-WATER-LOW.
     """
-    payload = {
-        "service_type": "food",
-        "priority": "low",
-        "description": "Low-stake food request for the auto-approval test.",
-        "location": {"latitude": 17.40, "longitude": 78.48},  # inside HYD
-    }
-    r = await client.post("/api/v1/incidents", json=payload)
-    if r.status_code != 201:
-        pytest.skip("DB not available")
+    r = await client.post("/api/v1/incidents",
+                          json=_food_request(17.40, 78.48, "Low-stake food request for the auto-approval test."))
+    assert r.status_code == 201
     body = r.json()
-    # Whether it auto-approves depends on the policy state and caps.
-    # We assert the decision was recorded rather than assert approval.
-    assert body["status"] in ("created", "approved")
+    assert body["status"] == "approved"
+    assert body["auto_approved"] is True
 
 
-@pytest.mark.pg
-@pytest.mark.asyncio
 async def test_auto_approval_outside_region_defers(client):
-    """A request outside any known region cannot be auto-approved."""
-    payload = {
-        "service_type": "food",
-        "priority": "low",
-        "description": "Far away from any known region.",
-        "location": {"latitude": 12.9716, "longitude": 77.5946},  # Bangalore
-    }
-    r = await client.post("/api/v1/incidents", json=payload)
-    if r.status_code != 201:
-        pytest.skip("DB not available")
+    """A request outside any known region is left for a human."""
+    r = await client.post("/api/v1/incidents",
+                          json=_food_request(12.9716, 77.5946, "Far away from any known region."))  # Bangalore
+    assert r.status_code == 201
     assert r.json()["status"] == "created"
+    assert r.json()["auto_approved"] is False
 
 
-@pytest.mark.pg
-@pytest.mark.asyncio
 async def test_kill_switch_disables_auto_approval(client, monkeypatch):
-    """Setting AUTO_APPROVAL_ENABLED=0 disables the engine."""
-    monkeypatch.setenv("AUTO_APPROVAL_ENABLED", "0")
-
+    """AUTO_APPROVAL_ENABLED=0 turns the engine off."""
     from shared.config import get_settings
-    get_settings.cache_clear()
 
-    payload = {
-        "service_type": "water",
-        "priority": "low",
-        "description": "Should not be auto-approved while disabled.",
-        "location": {"latitude": 17.40, "longitude": 78.48},
-    }
-    r = await client.post("/api/v1/incidents", json=payload)
-    if r.status_code != 201:
-        pytest.skip("DB not available")
-    # With the kill switch off, the incident stays in 'created'
+    monkeypatch.setenv("AUTO_APPROVAL_ENABLED", "0")
+    get_settings.cache_clear()       # restored by the autouse fixture afterwards
+
+    r = await client.post("/api/v1/incidents",
+                          json=_food_request(17.40, 78.48, "Should not be auto-approved while disabled."))
+    assert r.status_code == 201
     assert r.json()["status"] == "created"

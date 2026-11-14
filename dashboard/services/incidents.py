@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from shared.audit import log_sync
 from shared.enums import IncidentStatus
+from shared.lifecycle import can_transition, next_status
 from shared.models.incident import Incident, IncidentUpdate
 
 
@@ -59,31 +60,41 @@ class IncidentService:
         )
         return list(self.db.execute(stmt).scalars().all())
 
+    def _transition(self, incident_id: uuid.UUID, action: str) -> tuple[Incident, IncidentStatus]:
+        """
+        Load the incident (locked) and check `action` is legal from its state.
+
+        Raises ValueError with a message fit to show the coordinator.
+        """
+        incident = self.db.get(Incident, incident_id, with_for_update=True)
+        if incident is None or incident.deleted_at is not None:
+            raise ValueError("Incident not found.")
+        current = incident.status if isinstance(incident.status, IncidentStatus) else IncidentStatus(incident.status)
+        if not can_transition(action, current):
+            raise ValueError(f"Cannot {action} an incident that is '{current.value}'.")
+        return incident, current
+
     def coordinator_approve(self, incident_id: uuid.UUID, actor_id: uuid.UUID, note: str | None):
-        incident = self.get(incident_id)
-        if incident is None:
-            return None
-        old = incident.status
-        incident.status = IncidentStatus.approved
+        incident, old = self._transition(incident_id, "approve")
+        incident.status = next_status("approve")
         incident.approved_by = actor_id
         self.db.flush()
-        self._add_update(incident_id, old, IncidentStatus.approved, actor_id, note)
+        self._add_update(incident_id, old, incident.status, actor_id, note)
         log_sync(self.db, actor_id=actor_id, action="dashboard.incident.approved",
                  resource_type="incident", resource_id=incident_id,
+                 old_values={"status": old.value},
                  new_values={"status": "approved"})
         return incident
 
     def coordinator_reject(self, incident_id: uuid.UUID, actor_id: uuid.UUID, reason: str):
-        incident = self.get(incident_id)
-        if incident is None:
-            return None
-        old = incident.status
-        incident.status = IncidentStatus.rejected
+        incident, old = self._transition(incident_id, "reject")
+        incident.status = next_status("reject")
         incident.rejection_reason = reason
         self.db.flush()
-        self._add_update(incident_id, old, IncidentStatus.rejected, actor_id, reason)
+        self._add_update(incident_id, old, incident.status, actor_id, reason)
         log_sync(self.db, actor_id=actor_id, action="dashboard.incident.rejected",
                  resource_type="incident", resource_id=incident_id,
+                 old_values={"status": old.value},
                  new_values={"status": "rejected", "reason": reason})
         return incident
 

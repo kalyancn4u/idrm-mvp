@@ -17,7 +17,7 @@ orgs_bp = Blueprint("organizations", __name__, template_folder="../templates")
 @orgs_bp.route("/")
 @login_required
 def list_view():
-    page = max(1, int(request.args.get("page", 1)))
+    page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
     verified_param = request.args.get("verified")
     verified = None if verified_param in (None, "") else verified_param == "1"

@@ -43,7 +43,7 @@ echo
 echo -e "${BOLD}Next:${RESET}"
 echo "    make run"
 echo "    API       → http://127.0.0.1:8000/docs"
-echo "    Dashboard → http://127.0.0.1:5000/dashboard/login"
+echo "    Dashboard → http://127.0.0.1:5000/dashboard/auth/login"
 echo
 echo -e "${BOLD}Demo logins${RESET}"
 echo "    admin@idrm.local       / Admin#2026"

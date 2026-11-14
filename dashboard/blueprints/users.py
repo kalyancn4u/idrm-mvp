@@ -9,7 +9,9 @@ from flask_login import current_user, login_required
 
 from dashboard.extensions import db
 from dashboard.security import admin_required
+from dashboard.services import enum_or_none
 from dashboard.services.users import UserService
+from shared.enums import UserRole, UserStatus
 
 users_bp = Blueprint("users", __name__, template_folder="../templates")
 
@@ -17,12 +19,12 @@ users_bp = Blueprint("users", __name__, template_folder="../templates")
 @users_bp.route("/")
 @login_required
 def list_view():
-    page = max(1, int(request.args.get("page", 1)))
+    page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
     rows, total = UserService(db.session).list(
         page=page, limit=limit,
-        role=request.args.get("role") or None,
-        status=request.args.get("status") or None,
+        role=enum_or_none(UserRole, request.args.get("role")),
+        status=enum_or_none(UserStatus, request.args.get("status")),
         q=(request.args.get("q") or "").strip() or None,
     )
     return render_template(

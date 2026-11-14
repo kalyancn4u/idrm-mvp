@@ -61,7 +61,7 @@ any code review, any Markdown viewer.
    │ cool slate #f8fafc       │        │ warm saffron #fff7ed     │
    │                          │        │                          │
    │ API docs at /docs        │        │ Console at               │
-   │ JSON responses           │        │ /dashboard/login         │
+   │ JSON responses           │        │ /dashboard/auth/login         │
    │                          │        │                          │
    │ ✓ informational          │        │ ✓ operational            │
    │ ✓ public                 │        │ ✓ staff-only             │

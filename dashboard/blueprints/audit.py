@@ -14,7 +14,7 @@ audit_bp = Blueprint("audit", __name__, template_folder="../templates")
 @audit_bp.route("/")
 @login_required
 def trail():
-    page = max(1, int(request.args.get("page", 1)))
+    page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 50
     svc = AuditService(db.session)
     rows, total = svc.list(

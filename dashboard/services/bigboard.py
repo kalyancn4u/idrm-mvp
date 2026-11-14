@@ -34,7 +34,7 @@ class BigBoardService:
                 Incident.deleted_at.is_(None),
                 Incident.status.in_([IncidentStatus.created, IncidentStatus.approved,
                                      IncidentStatus.accepted, IncidentStatus.in_progress]),
-            ).order_by(Incident.priority.asc(), Incident.created_at.asc()).limit(limit)
+            ).order_by(Incident.priority.desc(), Incident.created_at.asc()).limit(limit)
         ).scalars().all())
         return {"items": [
             {"id": str(i.id),

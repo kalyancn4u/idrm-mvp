@@ -16,7 +16,6 @@ def test_all_eight_states_exist():
 
 @pytest.mark.parametrize("action,from_state,expected_to", [
     ("approve",  S.created,     S.approved),
-    ("accept",   S.created,     S.accepted),
     ("accept",   S.approved,    S.accepted),
     ("start",    S.accepted,    S.in_progress),
     ("complete", S.in_progress, S.completed),
@@ -31,6 +30,7 @@ def test_legal_transitions(action, from_state, expected_to):
 
 
 @pytest.mark.parametrize("action,from_state", [
+    ("accept",   S.created),      # approval comes first
     ("start",    S.created),
     ("verify",   S.created),
     ("complete", S.accepted),

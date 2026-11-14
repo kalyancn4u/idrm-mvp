@@ -37,7 +37,7 @@ make run
 ```
 
 - API → **http://127.0.0.1:8000/docs**
-- Dashboard → **http://127.0.0.1:5000/dashboard/login**
+- Dashboard → **http://127.0.0.1:5000/dashboard/auth/login**
 
 ## 5. Log in
 

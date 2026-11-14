@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     default_language: str = "en"
     allowed_origins: str = "http://127.0.0.1:8000,http://127.0.0.1:5000"
+    # Set to true ONLY when the app sits behind a reverse proxy you control
+    # that overwrites X-Forwarded-For. Otherwise the header is caller-supplied
+    # and must not be believed.
+    trust_forwarded_for: bool = False
 
     # ---- Database ---------------------------------------------------------
     database_url: str = "postgresql+asyncpg://idrm_user:idrm_pass@127.0.0.1:5432/idrm_db"
@@ -98,6 +102,9 @@ class Settings(BaseSettings):
     dashboard_session_lifetime_minutes: int = 480
     dashboard_allowed_roles: str = "coordinator,admin"
 
+    # ---- First admin (used once, by migration 0003) -----------------------
+    admin_initial_password: str = ""
+
     # ---- Seed -------------------------------------------------------------
     seed_password: str = "IDRMseed#2026"
 
@@ -113,6 +120,27 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"
+
+    def insecure_defaults(self) -> list[str]:
+        """Names of settings still at a publicly known default value."""
+        bad = []
+        if self.dashboard_secret_key.startswith("change-me"):
+            bad.append("DASHBOARD_SECRET_KEY")
+        if not self.dashboard_session_cookie_secure:
+            bad.append("DASHBOARD_SESSION_COOKIE_SECURE")
+        if self.s3_secret_key == "minioadmin":
+            bad.append("S3_SECRET_KEY")
+        if ":idrm_pass@" in self.database_url or ":idrm_pass@" in self.database_url_sync:
+            bad.append("DATABASE_URL / DATABASE_URL_SYNC (default password)")
+        return bad
+
+    def require_safe_for_production(self) -> None:
+        """Refuse to start in production while development defaults are in use."""
+        if self.is_production and (bad := self.insecure_defaults()):
+            raise RuntimeError(
+                "APP_ENV=production but these settings are still development "
+                "defaults: " + ", ".join(bad)
+            )
 
     def access_ttl_minutes(self, role: str) -> int:
         return getattr(self, f"jwt_access_ttl_{role}_min", 60)

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
+from shared import cache
 from shared.audit import log_sync
 from shared.models.governance import (
     AutoApprovalDecision, AutoApprovalPolicy, EntityList,
@@ -31,6 +32,7 @@ class PolicyService:
             return
         p.active = active
         self.db.flush()
+        cache.invalidate("policies:*")     # the engine must see the change now
         log_sync(self.db, actor_id=actor_id, action="policy.toggled",
                  resource_type="auto_approval_policy", resource_id=policy_id,
                  new_values={"active": active})
@@ -83,6 +85,7 @@ class PolicyService:
         )
         self.db.add(e)
         self.db.flush()
+        cache.invalidate(f"entity_lists:{entity_type}:*")
         log_sync(self.db, actor_id=actor_id, action="entity_list.created",
                  resource_type="entity_list", resource_id=e.id,
                  new_values={"entity_type": entity_type, "entity_value": entity_value,

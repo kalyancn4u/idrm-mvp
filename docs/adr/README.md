@@ -32,6 +32,7 @@ supersedes it.
 | [0011](0011-unified-entity-lists.md) | Entity lists are one unified table | Accepted |
 | [0012](0012-scope-based-volunteers.md) | Volunteer enrollment is scope-based | Accepted |
 | [0013](0013-jwt-two-token.md) | Two-token JWT with server-side session verification | Accepted |
+| [0014](0014-approval-first.md) | Approval comes first; auto-approval is a coordinator's time-boxed regional switch | Accepted |
 
 ## Reading order
 
@@ -41,7 +42,7 @@ If you are new to the project, read them in this order:
 2. **0009** — the shared-code boundary
 3. **0013** — the auth design
 4. **0004** — why Redis is optional
-5. **0007** — how auto-approval works
+5. **0007** — how auto-approval works, then **0014** — who may switch it on, and the default when nobody does
 6. **0010**, **0011**, **0012** — the remaining subsystems
 7. **0001**, **0002**, **0003**, **0006**, **0008** — the foundations
 

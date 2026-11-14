@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authz import is_org_member, is_staff
 from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
 from shared.db import async_session
@@ -105,9 +106,14 @@ async def transact(
     item_id: uuid.UUID, body: TxnCreate, db: DbSession,
     claims: Annotated[dict, Depends(require_role("coordinator", "admin", "provider"))],
 ):
-    item = await db.get(InventoryItem, item_id)
+    # FOR UPDATE: two stock movements on one item are applied one after the other.
+    item = await db.get(InventoryItem, item_id, with_for_update=True)
     if item is None:
         raise AppError(404, "not_found", "Item not found.")
+    if not is_staff(claims) and not await is_org_member(
+        db, uuid.UUID(claims["sub"]), item.organization_id
+    ):
+        raise AppError(403, "forbidden", "This item belongs to another organization.")
     item.quantity += body.quantity_delta
     if item.quantity < 0:
         raise AppError(409, "conflict", "Insufficient inventory.")

@@ -5,16 +5,18 @@ IDRM MVP — FastAPI assembly.
 from __future__ import annotations
 
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+from app.core.dependencies import client_ip
 from app.core.exceptions import register_exception_handlers
 from shared.config import get_settings
-from shared.logging import configure_logging, request_id_ctx
+from shared.logging import client_ip_ctx, configure_logging, request_id_ctx
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    settings.require_safe_for_production()
 
     app = FastAPI(
         title="IDRM — Integrated Disaster Response Management",
@@ -63,6 +66,26 @@ def create_app() -> FastAPI:
     )
 
     register_exception_handlers(app)
+
+    @app.middleware("http")
+    async def _request_context(request: Request, call_next):
+        """
+        Give every request an id and remember who sent it.
+
+        Both values are stored in context variables, which is where the JSON
+        log formatter and `shared.audit` look them up. Without this, every
+        log line has request id "-" and every audit row has no IP address.
+        """
+        request_id = (request.headers.get("X-Request-ID") or uuid.uuid4().hex)[:64]
+        rid_token = request_id_ctx.set(request_id)
+        ip_token = client_ip_ctx.set(client_ip(request))
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_ctx.reset(rid_token)
+            client_ip_ctx.reset(ip_token)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
     # ---- routers ----------------------------------------------------------
     API = "/api/v1"
@@ -90,8 +113,8 @@ def create_app() -> FastAPI:
     app.include_router(ics_router,       prefix=f"{API}", tags=["ics"])
     app.include_router(comms_router,     prefix=f"{API}", tags=["comms"])
     app.include_router(policies_router,  prefix=f"{API}", tags=["policies"])
-    app.include_router(files_router,     prefix=f"{API}", tags=["files"])
-    app.include_router(audit_router,     prefix=f"{API}", tags=["audit"])
+    app.include_router(files_router,     prefix=f"{API}/files", tags=["files"])
+    app.include_router(audit_router,     prefix=f"{API}/audit-logs", tags=["audit"])
     app.include_router(admin_router,     prefix=f"{API}", tags=["system"])
 
     # ---- static (for the docs preview; the main UI is Flask) --------------

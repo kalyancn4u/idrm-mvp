@@ -44,6 +44,47 @@ Citizen creates incident
 }
 ```
 
+## Approval comes first
+
+A provider can claim (`accept`) a request only when it is `approved`. A
+request becomes approved in one of two ways:
+
+1. A coordinator approves it (Dispatch Console, or `POST /incidents/{id}/approve`).
+2. An auto-approval policy that is active **for that region, at that time**
+   matches it when it is created.
+
+If neither happens the request stays in `created` and waits for a
+coordinator. That is the default. The decision and its reasons are recorded
+in [ADR-0014](adr/0014-approval-first.md).
+
+### Switching auto-approval on for a disaster
+
+During a specific event a coordinator can turn auto-approval on for the
+affected region for a fixed period:
+
+```bash
+curl -X POST $API/policies -H "Authorization: Bearer $COORDINATOR_TOKEN" \
+  -H 'Content-Type: application/json' -d '{
+    "code": "HYD-FLOOD-2026-11",
+    "name": "Hyderabad flood — auto-approve food and water",
+    "applies_to": "incident",
+    "region_scope": ["<HYD-region-uuid>"],
+    "service_types": ["food", "water"],
+    "priorities_allowed": ["low", "medium"],
+    "effective_to": "2026-11-21T18:00:00Z",
+    "caps": {"per_region_per_day": 500}
+  }'
+```
+
+| Who | May create |
+|---|---|
+| coordinator | Incident policies that name at least one region **and** have an `effective_to` end time |
+| admin | Any policy, including platform-wide and open-ended ones |
+
+When `effective_to` passes, the engine stops using the policy on its own and
+new requests in that region wait for a coordinator again. A coordinator can
+also switch a region-scoped policy off early from **Policies** in the console.
+
 ## The kill switch
 
 One env var: `AUTO_APPROVAL_ENABLED=0`. When off, every decision is

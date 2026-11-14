@@ -24,7 +24,7 @@ check "GET /api/v1/users/me (anon)" 401 "$(curl -s -o /dev/null -w '%{http_code}
 
 echo
 echo -e "${CYAN}Flask dashboard → $DASH_URL${RESET}"
-check "GET /dashboard/login"        200 "$(curl -s -o /dev/null -w '%{http_code}' "$DASH_URL/dashboard/login")"
+check "GET /dashboard/auth/login"        200 "$(curl -s -o /dev/null -w '%{http_code}' "$DASH_URL/dashboard/auth/login")"
 check "GET /dashboard/ (anon)"      302 "$(curl -s -o /dev/null -w '%{http_code}' "$DASH_URL/dashboard/")"
 
 echo

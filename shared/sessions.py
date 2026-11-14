@@ -126,7 +126,7 @@ async def validate_claims(db: AsyncSession, claims: dict) -> tuple[UserSession, 
             refresh_token_family=uuid.uuid4(),
             token_version_at_issue=0,
             expires_at=cached["expires_at"],
-            last_activity_at=datetime.now(UTC),
+            last_activity_at=cached["last_activity_at"],
             revoked_at=cached["revoked_at"],
         )
     else:
@@ -170,18 +170,35 @@ async def validate_claims(db: AsyncSession, claims: dict) -> tuple[UserSession, 
 # Revocation
 # ---------------------------------------------------------------------------
 async def revoke_session(
-    db: AsyncSession, session_id: str, *, by: uuid.UUID | None = None
-) -> None:
-    await db.execute(
+    db: AsyncSession,
+    session_id: str,
+    *,
+    by: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
+) -> bool:
+    """
+    Revoke one session. Returns True if a live session was revoked.
+
+    Pass `user_id` to revoke only when the session belongs to that user —
+    callers acting on behalf of an end user must always pass it.
+    """
+    conditions = [UserSession.session_id == session_id, UserSession.revoked_at.is_(None)]
+    if user_id is not None:
+        conditions.append(UserSession.user_id == user_id)
+    result = await db.execute(
         update(UserSession)
-        .where(UserSession.session_id == session_id)
+        .where(*conditions)
         .values(revoked_at=datetime.now(UTC), revoked_by=by)
     )
     _invalidate_cache(session_id)
+    return bool(result.rowcount)
 
 
 async def revoke_family(db: AsyncSession, family: uuid.UUID) -> int:
     """Revoke every session in a refresh-token family (used for reuse detection)."""
+    await _invalidate_cache_where(
+        db, UserSession.refresh_token_family == family, UserSession.revoked_at.is_(None)
+    )
     result = await db.execute(
         update(UserSession)
         .where(
@@ -196,6 +213,10 @@ async def revoke_family(db: AsyncSession, family: uuid.UUID) -> int:
 async def revoke_all_for_user(
     db: AsyncSession, user_id: uuid.UUID, *, by: uuid.UUID | None = None
 ) -> int:
+    """Revoke every live session of a user (password change, forced logout)."""
+    await _invalidate_cache_where(
+        db, UserSession.user_id == user_id, UserSession.revoked_at.is_(None)
+    )
     result = await db.execute(
         update(UserSession)
         .where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))
@@ -225,6 +246,8 @@ def _cache_session(session: UserSession) -> None:
         "user_id": str(session.user_id),
         "expires_at": session.expires_at.isoformat(),
         "revoked_at": session.revoked_at.isoformat() if session.revoked_at else None,
+        # A brand-new session has no value loaded yet (the DB default fills it).
+        "last_activity_at": (session.last_activity_at or datetime.now(UTC)).isoformat(),
     })
     ttl = get_settings().session_cache_ttl_seconds
     safe_call("setex", f"{SESSION_CACHE_PREFIX}{session.session_id}", ttl, payload)
@@ -246,6 +269,7 @@ def _cached_session(session_id: str) -> dict | None:
             "revoked_at": (
                 datetime.fromisoformat(data["revoked_at"]) if data["revoked_at"] else None
             ),
+            "last_activity_at": datetime.fromisoformat(data["last_activity_at"]),
         }
     except Exception:
         safe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
@@ -256,3 +280,10 @@ def _invalidate_cache(session_id: str) -> None:
     from shared.cache import safe_call
 
     safe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
+
+
+async def _invalidate_cache_where(db: AsyncSession, *conditions) -> None:
+    """Drop the cache entry of every session matching `conditions`."""
+    stmt = select(UserSession.session_id).where(*conditions)
+    for sid in (await db.execute(stmt)).scalars().all():
+        _invalidate_cache(sid)

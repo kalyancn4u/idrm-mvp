@@ -10,6 +10,7 @@ Boundary rule (enforced by `make lint`):
 from __future__ import annotations
 
 import logging
+import uuid
 
 from flask import Flask, redirect, render_template, request, url_for
 
@@ -21,6 +22,7 @@ log = logging.getLogger(__name__)
 def create_dashboard() -> Flask:
     """WSGI application factory for the staff console."""
     settings = get_settings()
+    settings.require_safe_for_production()
 
     app = Flask(
         __name__,
@@ -44,9 +46,9 @@ def create_dashboard() -> Flask:
     )
 
     # ---- extensions -------------------------------------------------------
-    from dashboard.extensions import csrf, db, login_manager
+    from dashboard.extensions import csrf, init_app, login_manager
 
-    db.init_app(app)
+    init_app(app)  # registers the request-scoped DB session teardown
     login_manager.init_app(app)
     csrf.init_app(app)
 
@@ -86,6 +88,21 @@ def create_dashboard() -> Flask:
     @app.route("/dashboard")
     def _no_slash():
         return redirect(url_for("main.overview"))
+
+    # ---- request context (for logs and audit rows) -------------------------
+    if settings.trust_forwarded_for:
+        # Behind a proxy we control: take the client address and scheme from
+        # the headers that proxy sets.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+    @app.before_request
+    def _request_context():
+        from shared.logging import client_ip_ctx, request_id_ctx
+
+        request_id_ctx.set((request.headers.get("X-Request-ID") or uuid.uuid4().hex)[:64])
+        client_ip_ctx.set(request.remote_addr or "-")
 
     # ---- security headers -------------------------------------------------
     @app.after_request
