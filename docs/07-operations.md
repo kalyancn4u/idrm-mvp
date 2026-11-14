@@ -9,7 +9,21 @@ make setup
 make run          # API :8000, Dashboard :5000
 ```
 
-### Production (reference)
+### Production — on an Ubuntu server (recommended)
+
+Use the installer; it builds the server, generates the secrets and starts
+both apps as hardened services. Full guide:
+[Infrastructure Master Plan](infra/INFRASTRUCTURE-MASTER-PLAN.md).
+
+```bash
+bash infra/install.sh            # show the plan; change nothing
+```
+
+```bash
+bash infra/install.sh apply --profile production --domain idrm.example.org
+```
+
+### Production — with Docker (reference)
 
 ```bash
 # 1. Build
