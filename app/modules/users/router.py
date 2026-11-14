@@ -13,20 +13,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
-    client_ip, get_current_claims, get_db, rate_limit, require_role,
+    client_ip,
+    get_current_claims,
+    get_db,
+    rate_limit,
+    require_role,
 )
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
 from shared.audit import log_async
 from shared.enums import LoginOutcome, UserRole, UserStatus
-from shared.models.identity import LoginAttempt, User, UserSession
-from shared.rate_limit import allow
+from shared.models.identity import LoginAttempt, PasswordHistory, User, UserSession
+from shared.rate_limit import allow_async
 from shared.security import (
-    create_access_token, create_refresh_token, decode_token,
-    hash_password, hash_refresh_token, verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    hash_refresh_token,
+    verify_password,
 )
 from shared.sessions import (
-    bump_token_version, create_session, revoke_all_for_user, revoke_family,
+    bump_token_version,
+    create_session,
+    revoke_all_for_user,
+    revoke_family,
     revoke_session,
 )
 
@@ -35,6 +46,7 @@ from shared.sessions import (
 SELF_SERVICE_ROLES = frozenset({UserRole.citizen, UserRole.provider})
 
 MAX_FAILED_LOGINS = 5
+PASSWORD_HISTORY_DEPTH = 5      # a new password may not repeat any of the last five
 LOCKOUT = timedelta(minutes=15)
 
 router = APIRouter()
@@ -127,7 +139,7 @@ async def login(data: LoginRequest, request: Request, db: DbSession):
 
     # A second limit keyed on the account, so that spreading guesses over many
     # addresses does not get around the per-address limit above.
-    if not allow("login_email", email, limit=10, per_seconds=300):
+    if not await allow_async("login_email", email, limit=10, per_seconds=300):
         raise AppError(429, "rate_limited",
                        "Too many attempts for this account. Try again later.")
 
@@ -322,6 +334,20 @@ async def change_password(data: ChangePasswordRequest, claims: Claims, db: DbSes
     user = await db.get(User, uuid.UUID(claims["sub"]))
     if user is None or not verify_password(data.current_password, user.password_hash):
         raise AppError(401, "invalid_credentials", "Current password is incorrect.")
+    # No going back to a recent password: compare with the current one and
+    # the last few kept in `password_history`.
+    previous = [user.password_hash] + list((await db.execute(
+        select(PasswordHistory.password_hash)
+        .where(PasswordHistory.user_id == user.id)
+        .order_by(PasswordHistory.created_at.desc())
+        .limit(PASSWORD_HISTORY_DEPTH)
+    )).scalars().all())
+    if any(verify_password(data.new_password, old) for old in previous):
+        raise AppError(422, "validation_error",
+                       f"Choose a password you have not used for your last {PASSWORD_HISTORY_DEPTH} passwords.")
+
+    db.add(PasswordHistory(user_id=user.id, password_hash=user.password_hash,
+                           created_at=datetime.now(UTC)))
     user.password_hash = hash_password(data.new_password)
     # Invalidate every access token AND end every session, so a copied
     # refresh token cannot be used to get back in.
@@ -369,7 +395,7 @@ async def list_users(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     role: UserRole | None = None,
-    status_filter: UserStatus | None = Query(None, alias="status"),
+    status_filter: Annotated[UserStatus | None, Query(alias="status")] = None,
 ):
     conditions = [User.deleted_at.is_(None)]
     if role:

@@ -9,9 +9,9 @@ import uuid
 
 import sqlalchemy as sa
 from alembic import op
-from passlib.context import CryptContext
 
 from shared.config import get_settings
+from shared.security import hash_password
 
 revision = "0003_seed_admin"
 down_revision = "0002_resgrid"
@@ -41,7 +41,6 @@ def _admin_password() -> str:
         )
     return DEV_ADMIN_PASSWORD
 
-_pwd = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
 
 
 def upgrade() -> None:
@@ -61,7 +60,7 @@ def upgrade() -> None:
                     'active', true, 'en')
             """
         ),
-        {"id": ADMIN_ID, "email": ADMIN_EMAIL, "pw": _pwd.hash(password)},
+        {"id": ADMIN_ID, "email": ADMIN_EMAIL, "pw": hash_password(password)},
     )
 
 

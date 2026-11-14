@@ -2,13 +2,68 @@
 
 Review date: 2026-11-14. Reviewed commit: `e8cca37`.
 
-## Fix status (updated 2026-11-14)
+## Fix status (updated 2026-11-14, third round)
 
-**Fixed in the working tree, not yet committed:** D-001 to D-034, D-036 to
-D-043, D-045 to D-051, and the `shared → app` import in D-064.
+**Fixed:** every item, D-001 to D-114, except the parts of D-069 listed below.
+The first two rounds are in commit `2273149`; the third round (D-052 onward)
+is in the working tree, not yet committed.
 
-**Partly fixed:** D-044 — Redis is retried 30 seconds after a failure, but the
-blocking Redis client is still called from async code.
+**Fourth round (2026-11-14) — the last nine, in the working tree:**
+
+| ID | What was done |
+|---|---|
+| D-044 | Redis calls made from async code now run on a worker thread (`asafe_call`, `ainvalidate`, `allow_async`), so a slow Redis no longer stalls every request |
+| D-070 | Dispatch rules live once in `shared/services/dispatch_core.py`; the async (API) and sync (console) services only load and save. The console now honours offer expiry too |
+| D-071 | Every console route is guarded by a named permission; the CSV export uses `export.data` |
+| D-072 | The three orphan templates have routes and links: organization detail, response times, expiring certifications |
+| D-073 | `warm_cache.py` clears and then reloads the policy cache |
+| D-075 | JWT key files are cached in memory and reloaded when the file changes |
+| D-076 | Passwords use the `bcrypt` library directly; `passlib` and the unused `lupa` are removed. Existing hashes still verify |
+| D-078 | ICS bodies no longer require `incident_id`; if sent it must match the URL. A lane must belong to the incident |
+| D-069 | **Partly.** Built: in-app notifications to the requester on each state change and to a person when dispatched; password history (no reuse of the last five). **Not built, on purpose:** password reset and email verification (both need email delivery, which does not exist), `user_delegations` (needs a rule for who grants them), `notification_deliveries` / `notification_preferences` and `rate_limit_events` (no consumer). Their tables and models stay for when those features are specified |
+
+Checked with 33 more no-database checks (108 in total, all passing), the
+test suite (55 pass, 9 skipped) and `ruff` (clean). **Not run against
+PostgreSQL:** notification and password-history rows being written, and
+everything listed as not run in the earlier rounds.
+
+**Fixed with a caveat:**
+
+- D-085 — the limits of audit immutability are now documented
+  (`docs/08`, `docs/adr/ERRATA.md`); no `TRUNCATE` guard was added because
+  ADR-0002 keeps it on purpose.
+- D-098 — `MANIFEST.md` file counts are corrected; its per-file tables were
+  not rewritten and do not list the files added by these fixes.
+- D-100 to D-104 — accepted ADRs are not edited; the differences are in
+  `docs/adr/ERRATA.md`.
+- D-105 — the seed now creates what `SEED_REFERENCE.md` lists (four
+  policies, two list entries, both enrollments, the hospital type).
+- D-114 — the reset instructions are fixed; the "four vs five KPI cards"
+  wording was not checked against the template.
+
+**Third round, how it was checked:** the 75 no-database behaviour checks and
+the test suite (55 pass, 9 skipped) still pass; `ruff` reports no findings on
+the configured rules; both YAML files parse; the doc link check finds no
+broken link. **Not run:** anything needing PostgreSQL — the seed (including
+its new policy, list and enrollment rows), `make test-db`, migration `0004`,
+the nine database tests — and nothing was built or started in Docker.
+
+Third-round changes that callers will notice:
+
+- Tests marked `pg` run only on a database whose name ends in `_test`;
+  `make test` points at `idrm_test`, created by `make test-db`. CI uses it too.
+- `make seed` refuses to run with `APP_ENV=production`;
+  `make seed-reference` loads the regions only.
+- The production compose example mounts `./keys` into the API container.
+- `scripts/generate_keys.py` keeps existing keys unless `--force`.
+- `alembic revision --autogenerate` no longer proposes dropping tables that
+  have no model.
+- The API sends `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy` and `Permissions-Policy`.
+- The unused `*_VOLUNTEER_*` settings are removed.
+- Coverage floor is one number (60) in both the Makefile and CI.
+- Imports are sorted with the project packages declared first-party in
+  `pyproject.toml`.
 
 **D-035 decided and fixed (2026-11-14).** The owner's answer: *"For some time
 of disaster events, in a specific geo region and for a stipulated amount of
@@ -19,8 +74,6 @@ regions and an end time. Recorded in
 [ADR-0014](../adr/0014-approval-first.md), which also lists what is not built
 (no event record, no maximum period, no coordinator-to-region link, no
 console form). D-110 (picture vs table) is resolved by the same change.
-
-Everything else (D-052 onward, mostly documents, and D-068 to D-078) is open.
 
 Second round (D-028, D-030 to D-050), how it was checked: 34 more behaviour
 checks without a database, all passing, plus the repaired test suite — 55

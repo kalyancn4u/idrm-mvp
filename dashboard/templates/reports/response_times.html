@@ -10,6 +10,7 @@
   <a class="btn btn-sm {{ 'btn-primary' if days == 7 else 'btn-outline' }}" href="?days=7">7d</a>
   <a class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-outline' }}" href="?days=30">30d</a>
   <a class="btn btn-sm {{ 'btn-primary' if days == 90 else 'btn-outline' }}" href="?days=90">90d</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('reports.index', days=days) }}">← All reports</a>
 </div>
 
 <div class="card">

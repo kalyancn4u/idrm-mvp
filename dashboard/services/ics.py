@@ -7,7 +7,11 @@ import uuid
 from sqlalchemy import select
 
 from shared.models.ics import (
-    IncidentCommand, IncidentLane, LaneAssignment, RunLog, RunLogEntry,
+    IncidentCommand,
+    IncidentLane,
+    LaneAssignment,
+    RunLog,
+    RunLogEntry,
 )
 
 

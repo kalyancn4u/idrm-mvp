@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -12,6 +13,12 @@ KEYS_DIR = Path("keys")
 
 def main() -> None:
     KEYS_DIR.mkdir(exist_ok=True)
+    private_path = KEYS_DIR / "jwt_private.pem"
+    # New keys make every token already issued invalid, i.e. everyone is
+    # logged out. So an existing pair is kept unless --force is given.
+    if private_path.exists() and "--force" not in sys.argv:
+        print("✔ keys already exist — kept (use --force to replace; this logs everyone out)")
+        return
     private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     (KEYS_DIR / "jwt_private.pem").write_bytes(
         private.private_bytes(

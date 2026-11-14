@@ -5,7 +5,6 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from shared.enums import IncidentStatus
-from shared.models.identity import User
 from shared.models.incident import Incident
 from shared.models.organization import Organization
 from shared.models.personnel import PersonnelStatusRow, Unit, UnitStatusRow

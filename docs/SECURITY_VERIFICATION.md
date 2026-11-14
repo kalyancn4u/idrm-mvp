@@ -28,8 +28,8 @@ SELECT email, left(password_hash, 20) AS prefix
 ```
          email          |        prefix
 ------------------------+----------------------
- admin@idrm.local       | $2b$12$LQv3c1yqBWVHx
- coord.hyd@idrm.local   | $2b$12$LQv3c1yqBWVHx
+ admin@idrm.local       | $2b$12$Xk3…  (yours will differ)
+ coord.hyd@idrm.local   | $2b$12$9fQ…
  …
 ```
 
@@ -190,7 +190,7 @@ curl -s -X POST http://localhost:8000/api/v1/auth/refresh \
 ```json
 {
   "error": {
-    "code": "invalid_token",
+    "code": "session_revoked",
     "message": "Session has been revoked."
   }
 }
@@ -202,14 +202,15 @@ is used.
 **Verify the audit event:**
 
 ```sql
-SELECT created_at, action, severity
+SELECT created_at, action, resource_id AS user_id, new_values
   FROM audit_logs
  WHERE action = 'auth.refresh_reuse_detected'
  ORDER BY created_at DESC
  LIMIT 1;
 ```
 
-The severity is **critical**.
+One row, with the token family in `new_values`. (`audit_logs` has no severity
+column; alert on the action name.)
 
 ---
 
@@ -279,8 +280,9 @@ curl -s -H "Authorization: Bearer $B_ACCESS" \
 }
 ```
 
-Ownership is checked in the service layer, not the route — so even a
-crafted request cannot bypass it.
+The same rule guards the timeline (`/incidents/{id}/updates`), and a citizen
+cannot cancel or verify someone else's request either — try both with B's
+token and expect `403`.
 
 ---
 
@@ -338,7 +340,9 @@ echo
 401 401 401 401 401 429 429 429 429 429
 ```
 
-The limit is 5 per minute per IP (or per bearer token if present).
+The limit is 5 per minute per client address, plus 10 per 5 minutes per
+email. Sending a different `Authorization` or `X-Forwarded-For` header each
+time does not get a fresh allowance.
 
 ---
 

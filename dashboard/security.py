@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import wraps
 
-from flask import abort, flash, redirect, url_for
+from flask import abort, flash
 from flask_login import current_user, login_required
 
 # Only these roles may sign into the dashboard at all

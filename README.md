@@ -23,7 +23,7 @@ citizens. IDRM fixes this with one map-based platform.
 |---|---|
 | **Citizen** | Raises a help request (incident) with a location |
 | **Provider** | Sees nearby requests, claims one, delivers help |
-| **Volunteer** | Self-enrolls into an organization, event, or region; a coordinator approves |
+| **Volunteer** | Not a separate role: a *provider* who self-enrolls into an organization, event, or region; a coordinator approves |
 | **Coordinator** | Uses the Dispatch Console; approves, dispatches, verifies |
 | **Admin** | Manages users, roles, and governance |
 
@@ -80,7 +80,7 @@ idrm-mvp/
 │   ├── cache.py             optional Redis with graceful degradation
 │   ├── governance/          auto-approval + entity lists
 │   ├── services/            shared business logic
-│   └── models/              60 tables
+│   └── models/              56 ORM models (60 tables in the database)
 ├── app/                     FastAPI — public JSON API
 │   ├── main.py
 │   ├── core/                dependencies, errors, pagination
@@ -92,18 +92,20 @@ idrm-mvp/
 │   ├── blueprints/          15 route modules
 │   ├── templates/           Dispatch Console + BigBoard + 20 more
 │   └── static/css/          design-system.css (saffron variant)
-├── alembic/                 2 migrations, one history
+├── alembic/                 4 migrations, one history
 ├── sql/                     readable DDL + sample data
 ├── scripts/                 bootstrap, seed, keys, run_all, smoke
 ├── tests/                   unit · api · dashboard · integration
-└── docs/                    13 documents + 14 ADRs
+└── docs/                    13 guides + 10 references + 14 ADRs + review/
 ```
 
 ---
 
 ## Data model
 
-**60 tables.** Both apps read and write the same rows.
+**60 tables** (56 have an ORM model; `api_keys`, `geocode_cache` and the two
+`webhook_*` tables are created by migration only). Both apps read and write
+the same rows.
 
 | Layer | Tables |
 |---|---|
@@ -204,7 +206,8 @@ make serve             BOTH in production mode
 make infra-up          Start PostGIS + MinIO + Redis
 make infra-down        Stop them
 make migrate           Apply Alembic migrations
-make seed              Load sample data
+make seed              Load DEMO data (development only)
+make seed-reference    Load regions only (safe for production)
 make db-reset          DESTRUCTIVE full rebuild
 make psql              Interactive SQL
 make dump              pg_dump to backups/
@@ -212,7 +215,8 @@ make dump              pg_dump to backups/
 make routes            List routes for BOTH apps
 make stats             Row counts
 
-make test              Full test suite
+make test-db           Create + migrate + seed the test database (idrm_test)
+make test              Full test suite (uses idrm_test, never the dev database)
 make test-api          FastAPI tests
 make test-dashboard    Flask tests
 make test-no-redis     Prove it works without Redis

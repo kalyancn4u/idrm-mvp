@@ -9,8 +9,49 @@ The project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
+Outcome of the 2026-11 code and documentation review
+(`docs/review/DISCREPANCY-REGISTER.md`).
+
+### Security
+
+- Sign-up accepts only the `citizen` and `provider` roles
+- The first admin password comes from `ADMIN_INITIAL_PASSWORD`; required in production
+- Both apps refuse to start in production on development defaults
+- Failed-login lockout and refresh-token reuse detection now persist
+- A password change ends every session
+- Ownership checks on incidents, files, chat, dispatch, inventory and units
+- Rate limiting per real client address (`TRUST_FORWARDED_FOR`) and per email
+- A full auto-approval cap can no longer end in an approval
+- `/health` returns 503 when the database is down and no error text
+- Security headers on the API
+
+### Changed
+
+- **Approval comes first** (ADR-0014): a provider can claim only an approved
+  request; a coordinator can switch auto-approval on for named regions and a
+  fixed period
+- Files moved to `/api/v1/files`, the audit list to `/api/v1/audit-logs`
+- Policies using conditions the engine cannot evaluate no longer match
+- Unknown filter values are rejected (API) or ignored (console)
+- Tests run against a separate `idrm_test` database
+- The demo seed refuses to run in production; `make seed-reference` loads regions only
+- Removed the unused `*_VOLUNTEER_*` settings (there is no volunteer role)
+
+### Fixed
+
+- `make install`, `make db-create`, the CI workflow, console start-up and login, the seed
+- `/incidents/nearby` was unreachable and measured in degrees
+- Incident responses always had null coordinates
+- The read-through cache never cached
+- Queues listed low priority first
+- Releasing an assignment left the unit dispatched
+- `updated_at` was never maintained on seven tables (migration `0004`)
+
 ### Added
-- Nothing yet.
+
+- `shared/lifecycle.py`, `shared/geo.py`, `app/core/authz.py`
+- `X-Request-ID` on every response; request id and client address in logs and audit rows
+- ADR-0014 and `docs/adr/ERRATA.md`
 
 ---
 
@@ -40,13 +81,13 @@ The initial MVP. Two apps, one database, shared Python.
   audit, reports
 - **Dispatch Console** — the three-panel CAD workflow
 - **BigBoard** — widget-based situational awareness
-- Policy authoring, decision log, entity-list management
+- Policy on/off switch, decision log, entity-list management
 - Volunteer enrollment approval
 - Force-logout with token version bump
 - CSV export with audit logging
 
 **Shared code**
-- 60 ORM models across 5 layers
+- 56 ORM models over 60 tables
 - Framework-agnostic config, logging, security, sessions, cache, storage,
   audit, enums, rate limiting
 - Unified governance engine for auto-approval and entity lists
@@ -65,8 +106,8 @@ The initial MVP. Two apps, one database, shared Python.
 - CI runs tests with and without Redis
 
 ### Known limitations
-- Email delivery is stubbed (verification tokens are returned in the API
-  response rather than emailed)
+- Email verification and password reset are not implemented (the tables
+  exist; no endpoint uses them)
 - Image content validation is by content-type header only
 - Rate limiting is per-process without Redis
 - No metrics endpoint (Prometheus)

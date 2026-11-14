@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
 from dashboard.security import permission_required
@@ -15,7 +15,7 @@ orgs_bp = Blueprint("organizations", __name__, template_folder="../templates")
 
 
 @orgs_bp.route("/")
-@login_required
+@permission_required("view.organizations")
 def list_view():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
@@ -32,6 +32,15 @@ def list_view():
         pages=max(1, (total + limit - 1) // limit),
         q=request.args.get("q", ""), verified=verified_param or "",
     )
+
+
+@orgs_bp.route("/<uuid:org_id>")
+@permission_required("view.organizations")
+def detail(org_id: uuid.UUID):
+    org = OrganizationService(db.session).get(org_id)
+    if org is None or org.deleted_at is not None:
+        abort(404)
+    return render_template("organizations/detail.html", org=org)
 
 
 @orgs_bp.route("/<uuid:org_id>/verify", methods=["POST"])
@@ -53,7 +62,7 @@ def unverify(org_id: uuid.UUID):
 
 
 @orgs_bp.route("/volunteers/pending")
-@login_required
+@permission_required("view.organizations")
 def pending_volunteers():
     svc = OrganizationService(db.session)
     return render_template("organizations/volunteers.html",

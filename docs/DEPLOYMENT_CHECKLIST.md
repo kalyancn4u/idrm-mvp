@@ -7,21 +7,22 @@ live. Print this, tick the boxes, keep it.
 
 ## 1. Secrets and keys
 
-- [ ] **`SECRET_KEY` is set and random.**
+- [ ] **`DASHBOARD_SECRET_KEY` is set and random.**
       ```bash
       openssl rand -hex 32
-      # → paste into .env as SECRET_KEY
+      # → paste into .env as DASHBOARD_SECRET_KEY
       ```
+
+- [ ] **`ADMIN_INITIAL_PASSWORD` is set (12+ characters) before the first
+      migration.** It becomes the password of `admin@idrm.local`. In
+      production the migration refuses to run without it.
 
 - [ ] **JWT keypair is generated and stored outside the repo.**
       ```bash
       make keys
-      # keys/ is .gitignore'd
-      # In production, mount these from a secret store
+      # keys/ is .gitignore'd and NOT in the Docker image.
+      # Mount it read-only into the API container: -v ./keys:/app/keys:ro
       ```
-
-- [ ] **`DASHBOARD_SECRET_KEY` is set and different from `SECRET_KEY`.**
-      Generate separately. Never reuse.
 
 - [ ] **Database password is strong.** Not `idrm_pass`.
       ```sql
@@ -36,11 +37,15 @@ live. Print this, tick the boxes, keep it.
 
 ## 2. Environment
 
-- [ ] **`APP_ENV=production`.** Enables the production config guard.
+- [ ] **`APP_ENV=production`.** Both apps then refuse to start while
+      `DASHBOARD_SECRET_KEY`, `DASHBOARD_SESSION_COOKIE_SECURE`,
+      `S3_SECRET_KEY` or the database password is a development default.
 
-- [ ] **`SESSION_COOKIE_SECURE=1`.** Requires HTTPS.
+- [ ] **`DASHBOARD_SESSION_COOKIE_SECURE=1`.** Requires HTTPS.
 
-- [ ] **`DASHBOARD_SESSION_COOKIE_SECURE=1`.** Same.
+- [ ] **`TRUST_FORWARDED_FOR=1`** if (and only if) a reverse proxy you
+      control sets `X-Forwarded-For`. Needed for correct rate limits, audit
+      IPs and HTTPS detection; wrong if clients can reach the app directly.
 
 - [ ] **`ALLOWED_ORIGINS`** contains only production URLs.
 
@@ -68,12 +73,13 @@ live. Print this, tick the boxes, keep it.
 - [ ] **Migrations applied:**
       ```bash
       make migrate
-      alembic current   # expect "0003_seed_admin (head)"
+      alembic current   # expect "0004_touch_triggers (head)"
       ```
 
-- [ ] **Reference data seeded:**
+- [ ] **Reference data seeded** (regions only — the demo seed refuses to
+      run in production because it creates accounts with a public password):
       ```bash
-      make seed
+      make seed-reference
       ```
 
 - [ ] **Connection pool sized correctly** for your workload.
@@ -139,11 +145,8 @@ live. Print this, tick the boxes, keep it.
       X-Real-IP
       ```
 
-- [ ] **`ProxyFix` is enabled** if behind a proxy:
-      ```python
-      from werkzeug.middleware.proxy_fix import ProxyFix
-      app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-      ```
+- [ ] **`TRUST_FORWARDED_FOR=1`** is set if behind a proxy (this enables
+      `ProxyFix` in the console).
 
 - [ ] **HTTP redirects to HTTPS** at the load balancer.
 
@@ -171,9 +174,9 @@ live. Print this, tick the boxes, keep it.
 
 ## 7. Monitoring
 
-- [ ] **Logs are collected.** `logs/idrm.log` or stdout → log aggregator.
-
-- [ ] **Log rotation is configured.** The app rotates at 5 MB × 5 backups.
+- [ ] **Logs are collected.** Both apps write JSON lines to stdout only —
+      there is no log file and no rotation in the app. Collect and rotate
+      with Docker's log driver or your aggregator.
 
 - [ ] **Health endpoint is polled** by your monitor.
 
@@ -214,7 +217,8 @@ live. Print this, tick the boxes, keep it.
 Verify:
 
 ```bash
-curl -sI https://api.example.com/health
+curl -sI https://api.example.com/api/v1/health      # API
+curl -sI https://console.example.com/dashboard/auth/login   # console
 ```
 
 Should include:
@@ -223,8 +227,8 @@ Should include:
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: strict-origin-when-cross-origin
-Content-Security-Policy: default-src 'self'; …
 Permissions-Policy: geolocation=(), microphone=(), camera=()
+Content-Security-Policy: default-src 'self'; …        (console only)
 ```
 
 - [ ] **All headers present.**
@@ -281,7 +285,7 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 
 - [ ] **A smoke test** has run against staging.
       ```bash
-      BASE_URL=https://staging.example.com make smoke
+      API_URL=https://api.staging.example.com DASH_URL=https://console.staging.example.com make smoke
       ```
 
 - [ ] **Rollback procedure** is written and tested.
@@ -315,7 +319,7 @@ In the first week, watch for:
 
 | Symptom | Where to look |
 |---|---|
-| 500 errors spike | `logs/idrm.log` |
+| 500 errors spike | Container stdout (`docker logs`); search by the `X-Request-ID` of a failing response |
 | Slow | `pg_stat_activity` for long queries |
 | Audit growing fast | Disk usage; consider partitioning |
 | Redis unavailable | The platform still works; check the cache warning |

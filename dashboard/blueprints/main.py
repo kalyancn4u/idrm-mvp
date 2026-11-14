@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from flask import Blueprint, render_template
-from flask_login import login_required
 
 from dashboard.extensions import db
+from dashboard.security import permission_required
 from dashboard.services.kpi import KPIService
 
 main_bp = Blueprint("main", __name__, template_folder="../templates")
 
 
 @main_bp.route("/")
-@login_required
+@permission_required("view.overview")
 def overview():
     kpi = KPIService(db.session)
     return render_template(

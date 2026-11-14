@@ -56,9 +56,11 @@ Both apps ship the same components. The only console-specific addition is
 
 ## The two CSS files
 
-Both files are byte-identical **except** for four tokens. The dashboard
-version additionally adds `.btn-warm`, `.kpi-warm`, `.badge-warm`, and the
-warm-tinted shadows.
+They share the same tokens and vocabulary but are **not** the same size:
+`dashboard/static/css/design-system.css` is the full system (~640 lines);
+`app/static/css/design-system.css` is a small subset (~165 lines) kept for a
+future public site. The API itself serves JSON only, so that file is not
+loaded by any page today.
 
 ## Accessibility
 

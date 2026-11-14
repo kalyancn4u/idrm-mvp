@@ -7,20 +7,23 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
-from shared.db import async_session
-from pydantic import ValidationError
-
 from shared import cache
 from shared.audit import log_async
 from shared.enums import (
-    AppliesTo, DecisionKind, EntityType, ListEffect, ListType, Priority, ServiceType,
+    AppliesTo,
+    DecisionKind,
+    EntityType,
+    ListEffect,
+    ListType,
+    Priority,
+    ServiceType,
 )
 from shared.governance.evaluator import _unsupported_conditions
 from shared.governance.schema import validate_policy
@@ -126,7 +129,7 @@ async def create_policy(
                                 "effective_from": p.effective_from.isoformat() if p.effective_from else None,
                                 "effective_to": p.effective_to.isoformat() if p.effective_to else None,
                                 "conditions": conditions, "caps": caps})
-    cache.invalidate("policies:*")
+    await cache.ainvalidate("policies:*")
     return {"id": str(p.id), "code": p.code}
 
 
@@ -214,7 +217,7 @@ async def create_list_entry(
                                 "entity_value": body.entity_value,
                                 "list_type": body.list_type.value,
                                 "effect": body.effect.value})
-    cache.invalidate(f"entity_lists:{body.entity_type.value}:*")
+    await cache.ainvalidate(f"entity_lists:{body.entity_type.value}:*")
     return {"id": str(e.id)}
 
 

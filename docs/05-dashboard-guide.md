@@ -80,7 +80,9 @@ The three-panel CAD workflow, inspired by Resgrid:
 3. Add a note, then click **⚡ Dispatch Now** (immediate assignment) or
    **📨 Offer** (send to the resource; they must accept).
 
-Both actions fire an audit event and update personnel/unit statuses.
+Both actions fire an audit event. **Dispatch Now** also sets the unit to
+`dispatched` and the person to `responding`; an **Offer** changes no status
+until it is accepted.
 
 ## BigBoard — the wall display
 
@@ -121,7 +123,8 @@ responding, which units are in quarters.
 
 `/dashboard/organizations/`
 
-List of providers, with a **Verify** button on each row. Also a link to
+List of providers, with a **Verify** button on each row; click a name for
+its detail page. Also a link to
 **Pending Volunteers** — self-enrolled volunteers awaiting approval.
 
 ## Users
@@ -137,7 +140,9 @@ The user detail page has:
 
 ## Policies / Decisions / Entity Lists
 
-**Policies** — every auto-approval rule. Toggle active/inactive.
+**Policies** — every auto-approval rule. Toggle active/inactive (a
+coordinator may toggle region-scoped policies; platform-wide ones need an
+admin — see [ADR-0014](adr/0014-approval-first.md)).
 
 **Decisions** — the complete decision log. Every auto-approval decision,
 whether approved, deferred, or skipped, appears here with the counters at
@@ -145,8 +150,9 @@ decision time. When someone asks *"why did the system approve this?"*, this
 is where you find the answer.
 
 **Entity Lists** — blocklist/allowlist/watchlist management. Add an entry
-with a value, list type, and effect. The engine enforces it on the next
-request.
+with a value, list type, and effect. Today the engine checks one thing: the
+requester's **email** when a help request is created. Other entity types are
+stored and shown but not yet enforced anywhere.
 
 ## Audit Trail
 
@@ -161,7 +167,7 @@ database trigger blocks UPDATE and DELETE.
 `/dashboard/reports/`
 
 - Daily created / verified
-- Average minutes to verify
+- Average minutes to verify (also as its own page: **Response times**)
 - Top organizations
 
 **⇩ Export CSV** — downloads `incidents.csv` and logs an EXPORT audit event.

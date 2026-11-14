@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
-from dashboard.security import admin_required
+from dashboard.security import permission_required
 from dashboard.services import enum_or_none
 from dashboard.services.users import UserService
 from shared.enums import UserRole, UserStatus
@@ -17,7 +17,7 @@ users_bp = Blueprint("users", __name__, template_folder="../templates")
 
 
 @users_bp.route("/")
-@login_required
+@permission_required("view.users")
 def list_view():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
@@ -38,7 +38,7 @@ def list_view():
 
 
 @users_bp.route("/<uuid:user_id>")
-@login_required
+@permission_required("view.users")
 def detail(user_id: uuid.UUID):
     svc = UserService(db.session)
     user = svc.get(user_id)
@@ -49,7 +49,7 @@ def detail(user_id: uuid.UUID):
 
 
 @users_bp.route("/<uuid:user_id>/role", methods=["POST"])
-@admin_required
+@permission_required("act.users")
 def set_role(user_id: uuid.UUID):
     role = request.form.get("role", "")
     if role not in {"citizen", "provider", "coordinator", "admin"}:
@@ -62,7 +62,7 @@ def set_role(user_id: uuid.UUID):
 
 
 @users_bp.route("/<uuid:user_id>/status", methods=["POST"])
-@admin_required
+@permission_required("act.users")
 def set_status(user_id: uuid.UUID):
     status = request.form.get("status", "")
     if status not in {"pending", "active", "suspended", "deactivated"}:
@@ -75,7 +75,7 @@ def set_status(user_id: uuid.UUID):
 
 
 @users_bp.route("/<uuid:user_id>/force-logout", methods=["POST"])
-@admin_required
+@permission_required("act.users")
 def force_logout(user_id: uuid.UUID):
     UserService(db.session).force_logout(user_id, current_user.id)
     db.session.commit()

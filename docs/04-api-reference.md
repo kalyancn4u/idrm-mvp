@@ -1,7 +1,12 @@
 # API Reference
 
-Base path: `/api/v1`. All endpoints except `/health` require an
-authenticated session (bearer token).
+Base path: `/api/v1`. Every endpoint needs a bearer token unless its **Auth**
+column says `none` or `anon`. The open ones are: `/health`, `/info`,
+`POST /incidents` (guest requests), `/incidents/track/{token}`,
+`GET /organizations`, and the four `/auth/*` calls.
+
+A filter with an unknown value (for example `?status=opne`) is rejected with
+`422 validation_error`. Every response carries an `X-Request-ID` header.
 
 ## Authentication
 
@@ -58,7 +63,7 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
-| POST | `/auth/register` | `{email, password, name, phone?, role?, language?}` | Create account |
+| POST | `/auth/register` | `{email, password, name, phone?, role?, language?}` | Create account. `role` may be `citizen` (default) or `provider`; anything else is `403` |
 | POST | `/auth/login` | `{email, password}` | Issue tokens |
 | POST | `/auth/refresh` | `{refresh_token}` | Rotate tokens |
 | POST | `/auth/logout` | `{refresh_token}` | Revoke session |
@@ -73,8 +78,8 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 | GET | `/users/me/sessions` | user | List active sessions |
 | DELETE | `/users/me/sessions/{id}` | user | Revoke one session |
 | GET | `/users` | admin | List all users |
-| GET | `/users/{id}` | coordinator/admin | User detail |
-| PATCH | `/users/{id}` | admin | Change role/status |
+
+User detail and role/status changes are done in the staff console, not the API.
 
 ## Incidents
 
@@ -95,25 +100,30 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 | POST | `/incidents/{id}/verify` | citizen | Confirm + rate |
 | POST | `/incidents/{id}/cancel` | citizen/coordinator | Cancel |
 
+Ownership rules: a citizen sees, cancels and verifies only their own
+requests. `accept` needs the provider to belong to an organization, which is
+recorded on the incident; only members of that organization may `start` or
+`complete` it.
+
 ## Dispatch
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | POST | `/dispatch/assign` | coordinator | Assign unit/person |
 | POST | `/dispatch/offer` | coordinator | Offer to a resource |
-| POST | `/dispatch/offers/{id}/respond` | provider | Accept/decline |
-| POST | `/dispatch/assignments/{id}/release` | coordinator/provider | Release |
+| POST | `/dispatch/offers/{id}/respond` | the addressee | Accept/decline — only the person, or a member of the unit, the offer was sent to |
+| POST | `/dispatch/assignments/{id}/release` | coordinator / the assignee | Release; the unit returns to `in_quarters`, the person to `available` |
 | GET | `/dispatch/board` | coordinator | Three-panel feed |
 
 ## Personnel + Units
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET/PUT | `/personnel/me/status` | provider | Self status |
+| GET/PUT | `/personnel/me/status` | user | Self status |
 | GET | `/personnel/statuses` | coordinator | All statuses |
 | POST | `/units` | coordinator | Create unit |
 | GET | `/units` | provider+ | List units |
-| PUT | `/units/{id}/status` | provider+ | Change unit status |
+| PUT | `/units/{id}/status` | coordinator / unit member | Change unit status |
 
 ## Organizations + Volunteers
 
@@ -125,6 +135,7 @@ Common codes: `validation_error` (422), `unauthorized` (401),
 | POST | `/volunteers/enroll` | provider | Self-enroll |
 | GET | `/volunteers/mine` | provider | My enrollments |
 | POST | `/volunteers/{id}/approve` | coordinator | Approve |
+| POST | `/volunteers/{id}/reject?reason=` | coordinator | Reject |
 
 ## Governance
 
@@ -146,8 +157,49 @@ open-ended policies need an admin. Body fields: `code`, `name`, `applies_to`,
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/files` | user | Upload to MinIO |
-| GET | `/files/{id}/download` | user | Presigned URL |
+| POST | `/files` | user | Upload to MinIO (multipart: `file`, `purpose`, `entity_type?`, `entity_id?`) |
+| GET | `/files/{id}/download` | uploader, provider+ | Presigned URL |
+
+## Messages, chat, notifications
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/messages` | coordinator+ | Send an organization message |
+| POST | `/chat/channels` | provider+ | Open a channel (a provider only inside their own organization or unit) |
+| GET/POST | `/chat/channels/{id}/messages` | channel member | Read / post |
+| GET | `/notifications` | user | My notifications (a requester gets one when their request is approved, rejected, claimed, started, completed or cancelled; a person gets one when dispatched) |
+| POST | `/notifications/{id}/read` | user | Mark one read |
+| POST | `/notifications/read-all` | user | Mark all read |
+
+## Scheduling
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/shifts` | coordinator+ | Create shift |
+| GET | `/shifts` | provider+ | List shifts |
+| POST | `/shifts/{id}/signup` | user | Sign up |
+| POST | `/trainings` | coordinator+ | Create training |
+| POST | `/trainings/{id}/assign` | coordinator+ | Assign to users |
+| POST | `/calendar` | coordinator+ | Create event |
+
+## Logistics
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/inventory/locations` | coordinator+ | Create location |
+| POST | `/inventory/items` | coordinator+ | Create item |
+| GET | `/inventory/items` | provider+ | List items |
+| POST | `/inventory/items/{id}/transaction` | coordinator / member of the item's organization | Stock movement |
+
+## Incident command (ICS)
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST/GET | `/incidents/{id}/command` | coordinator+ / user | Establish / read command |
+| POST/GET | `/incidents/{id}/lanes` | coordinator+ / user | Create / list lanes |
+| POST | `/incidents/{id}/lanes/{lane_id}/assign` | coordinator+ | Assign to a lane |
+| POST | `/run-logs` | coordinator+ | Open a run log |
+| POST | `/run-logs/{id}/entries` | provider+ | Add an entry |
 
 ## Audit
 
@@ -180,3 +232,5 @@ List endpoints return:
 ```
 
 Query params: `?page=1&limit=20`. `limit` is clamped to 100.
+
+The live, always-current list is the OpenAPI page at `/docs`.

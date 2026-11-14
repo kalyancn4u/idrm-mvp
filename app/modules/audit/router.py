@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db, require_role
 from app.core.pagination import clamp_limit, paginate
-from shared.db import async_session
 from shared.models.audit import AuditLog
 
 router = APIRouter()

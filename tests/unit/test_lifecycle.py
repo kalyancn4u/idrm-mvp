@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 
 from app.modules.incidents.lifecycle import (
-    ACTION_ROLES, TRANSITIONS, can_transition, next_status, role_allowed,
+    ACTION_ROLES,
+    TRANSITIONS,
+    can_transition,
+    next_status,
+    role_allowed,
 )
 from shared.enums import IncidentStatus as S
 

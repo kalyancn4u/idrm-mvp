@@ -30,9 +30,10 @@ make install
 
 ## Database
 
-### `relation "audit_event" does not exist`
+### `relation "..." does not exist`
 
-You ran migrations out of order. `make db-reset` rebuilds correctly.
+Migrations have not been applied to this database. Run `make migrate`
+(`make db-reset` rebuilds a development database from scratch).
 
 ### `UPDATE audit_logs` fails
 
@@ -42,7 +43,8 @@ That is the immutability trigger working:
 ERROR: audit_logs is append-only — UPDATE and DELETE are forbidden
 ```
 
-To modify audit rows, drop the trigger:
+The table owner can still remove the guard (this is why production should
+run the app as a non-owner role — see [Security](08-security.md)):
 
 ```sql
 DROP TRIGGER trg_audit_immutable ON audit_logs;
@@ -56,25 +58,27 @@ Do not do this in production.
 ### Auto-approval not firing
 
 1. Check `AUTO_APPROVAL_ENABLED=1` in `.env`.
-2. Check `/dashboard/policies` — is the policy active?
-3. Check `/dashboard/decisions` — is there a recent decision?
+2. Check `/dashboard/policies` — is the policy active, and still inside its
+   `effective_from` … `effective_to` period?
+3. Check `/dashboard/policies/decisions` — is there a recent decision?
 4. Check the incident's region — is it inside the policy's region scope?
 5. Check the daily cap in Redis: `redis-cli keys 'idrm:cap:*'`.
+6. Does the policy use a condition the engine does not enforce (for example
+   `time_of_day_start`)? Such a policy never matches; the API log says so.
 
 ### Seeded users can't log in
 
-Password hash is `PLACEHOLDER`:
-
-```bash
-make seed
-```
-
-Verify:
-
-```sql
-SELECT username, left(password_hash, 12) FROM users;
--- expect 'pbkdf2:sha256' not 'PLACEHOLDER'
-```
+1. Did the seed finish? It prints `✔ Seed complete`.
+   ```bash
+   make seed
+   ```
+2. Is the account locked after five wrong passwords?
+   ```sql
+   SELECT email, status, locked_until, left(password_hash, 7) FROM users;
+   -- expect '$2b$12$' and locked_until empty or in the past
+   ```
+3. `admin@idrm.local` is created by migration `0003`, with
+   `ADMIN_INITIAL_PASSWORD` if that was set, otherwise the demo password.
 
 ## Application
 
@@ -83,25 +87,23 @@ SELECT username, left(password_hash, 12) FROM users;
 Cookie settings. In production behind a proxy:
 
 ```dotenv
-SESSION_COOKIE_SECURE=0    # behind a TLS proxy
+DASHBOARD_SESSION_COOKIE_SECURE=1   # the browser must reach the console over HTTPS
+TRUST_FORWARDED_FOR=1               # only behind a proxy you control
 ```
 
-Add `ProxyFix`:
+`TRUST_FORWARDED_FOR=1` turns on Werkzeug's `ProxyFix`, so the console knows
+the original request was HTTPS. A secure cookie over plain HTTP is never sent
+back, which shows up as exactly this loop.
 
-```python
-from werkzeug.middleware.proxy_fix import ProxyFix
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-```
+### Sent back to the login page after logging in
 
-### 403 on every page after logging in
-
-Check the role:
+Only `coordinator` and `admin` may use the console, and the check is repeated
+on every request. If an account is suspended or its role is changed, the next
+click signs it out.
 
 ```sql
-SELECT username, role FROM users WHERE username = 'auditor';
+SELECT email, role, status FROM users WHERE email = '...';
 ```
-
-An auditor cannot access `/dashboard/*`. That is the design.
 
 ### 401 on API with a valid token
 
@@ -112,13 +114,14 @@ The message says which check failed:
 | `token_expired` | The `exp` claim is past |
 | `session_not_found` | The `sid` claim points to no session |
 | `session_revoked` | Someone logged you out |
-| `token_version_mismatch` | Password was changed — re-login |
+| `token_version_mismatch` | Password was changed, an admin forced a sign-out, or a stolen refresh token was detected — re-login |
 | `account_disabled` | Your account was disabled |
 
 ### Rate limited (429)
 
-The token bucket refills per window. Wait 60 seconds or use a different
-identity.
+Limits are counted per client address (and, for login, per email). Wait for
+the window to pass. Behind a proxy, set `TRUST_FORWARDED_FOR=1` or every user
+shares the proxy's address and one limit.
 
 ### Styles look broken / unstyled
 
@@ -171,15 +174,15 @@ A: Not without changes. The immutability trigger, PostGIS geometry, `INET`
 type, and `JSONB` are PostgreSQL-specific.
 
 **Q: How do I add an auto-approval policy?**
-A: Insert a row into `auto_approval_policies`, or use the dashboard. No code
-change required.
+A: `POST /api/v1/policies` (see [Governance](12-governance.md)). The console
+can switch an existing policy on or off but has no form to create one.
 
 **Q: How do I add an entity to the blocklist?**
-A: `/dashboard/policies/entity-lists` — one form. The engine enforces it on
-the next request.
+A: `/dashboard/policies/entity-lists` — one form. Today only `email` entries
+are enforced, when a help request is created.
 
 **Q: Where are the passwords?**
-A: In `.env` for the DB; PBKDF2 hashes in `users.password_hash`. The demo
+A: In `.env` for the DB; bcrypt hashes in `users.password_hash`. The demo
 password is documented in the README and is for development only.
 
 **Q: Can I run this without Docker?**

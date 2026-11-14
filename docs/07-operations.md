@@ -17,11 +17,22 @@ docker build -t idrm:0.1.0 .
 
 # 2. Configure
 cp .env.example .env
-$EDITOR .env      # set SECRET_KEY, DATABASE_URL, SESSION_COOKIE_SECURE=1
+$EDITOR .env      # APP_ENV=production, DASHBOARD_SECRET_KEY, DASHBOARD_SESSION_COOKIE_SECURE=1,
+                  # DATABASE_URL + DATABASE_URL_SYNC, S3_SECRET_KEY, ADMIN_INITIAL_PASSWORD
+# With APP_ENV=production both apps REFUSE TO START while any of those is
+# still a development default — the error names the setting.
+
+# 2b. JWT keys — the image contains none; create them on the host
+python scripts/generate_keys.py        # writes ./keys/ (kept if they exist)
+
+# 2c. Schema + reference data
+alembic upgrade head                   # needs ADMIN_INITIAL_PASSWORD (12+ chars)
+python -m scripts.seed --reference-only   # regions only; NEVER the demo seed
 
 # 3. Run BOTH apps
 docker run -d --name idrm-api \
-  --env-file .env -p 8000:8000 --restart unless-stopped idrm:0.1.0
+  --env-file .env -p 8000:8000 -v "$PWD/keys:/app/keys:ro" \
+  --restart unless-stopped idrm:0.1.0
 
 docker run -d --name idrm-dashboard \
   --env-file .env -p 5000:5000 --restart unless-stopped \
@@ -42,7 +53,6 @@ curl -fsS https://idrm.example.com/api/v1/health | jq
 | Open incidents | > 100 | > 200 |
 | Critical incidents | > 5 | > 10 |
 | Overdue verifications | > 20 | > 50 |
-| Last successful scan | — | N/A (this version) |
 | DB connection pool saturation | > 80% | > 95% |
 
 ## Scheduled jobs
@@ -51,7 +61,6 @@ curl -fsS https://idrm.example.com/api/v1/health | jq
 |---|---|---|
 | Purge expired sessions | daily | `DELETE FROM user_sessions WHERE expires_at < now() - INTERVAL '90 days'` |
 | Purge old login attempts | daily | `DELETE FROM login_attempts WHERE occurred_at < now() - INTERVAL '90 days'` |
-| Purge old rate-limit events | daily | `DELETE FROM rate_limit_events WHERE occurred_at < now() - INTERVAL '7 days'` |
 | `VACUUM ANALYZE` | nightly | `VACUUM ANALYZE;` |
 | Backup | nightly | `make dump` |
 
@@ -100,13 +109,13 @@ SELECT relname, seq_scan, idx_scan
  ORDER BY seq_scan DESC;
 ```
 
-### "Findings stopped appearing"
+### "Requests stopped being auto-approved"
 
-This MVP has no scheduled scan. Auto-approval runs on incident creation. If
-auto-approval stops:
+Auto-approval runs when an incident is created. If it stops:
 
-1. Check `/dashboard/policies` — is the policy still active?
-2. Check `/dashboard/decisions` — are recent decisions `matched_policy`?
+1. Check `/dashboard/policies` — is the policy still active, and has its
+   `effective_to` end time passed? (Expired policies stop on their own.)
+2. Check `/dashboard/policies/decisions` — are recent decisions `matched_policy`?
 3. Check `AUTO_APPROVAL_ENABLED` env var.
 
 ### "The audit trail has a gap"
@@ -121,10 +130,16 @@ auto-approval stops:
 ### "Users cannot log in"
 
 ```sql
-SELECT username, is_active, failed_login, locked_until FROM users;
-SELECT username, left(password_hash, 20) FROM users;
--- 'PLACEHOLDER' means the seed didn't complete
+SELECT email, role, status, failed_login_attempts, locked_until FROM users;
+-- locked_until in the future = five wrong passwords; wait 15 minutes or:
+UPDATE users SET locked_until = NULL, failed_login_attempts = 0 WHERE email = '...';
+
+SELECT email, left(password_hash, 7) FROM users;
+-- expect '$2b$12$' (bcrypt, cost 12)
 ```
+
+Also check the JWT keys exist where `JWT_PRIVATE_KEY_PATH` points — without
+them the API cannot issue a token.
 
 ## Upgrade procedure
 
@@ -159,15 +174,15 @@ curl -fsS https://idrm.example.com/api/v1/health | jq
 | Slow dashboards | Add a materialized view for KPIs |
 | Slow audit browsing | Partition `audit_logs` by month |
 | Slow identity search | Confirm trigram indexes are used (`EXPLAIN ANALYZE`) |
-| Connection pool exhaustion | Raise `SQLALCHEMY_POOL_SIZE` / add PgBouncer |
+| Connection pool exhaustion | Raise `pool_size` / `max_overflow` in `shared/db.py` (they are fixed in code, not env vars), or add PgBouncer |
 | Large audit table | Archive > 2 years to cold storage |
 
 ## Security operations
 
 | Task | Frequency | Command |
 |---|---|---|
-| Rotate `SECRET_KEY` | quarterly | update `.env`, restart |
-| Rotate JWT keypair | quarterly | `make keys`, restart |
+| Rotate `DASHBOARD_SECRET_KEY` | quarterly | update `.env`, restart (signs everyone out of the console) |
+| Rotate JWT keypair | quarterly | `python scripts/generate_keys.py --force`, restart (signs every API user out) |
 | Rotate DB password | quarterly | `ALTER ROLE idrm_user PASSWORD '...'` |
 | Review admin accounts | monthly | `SELECT * FROM users WHERE role='admin';` |
 | Verify audit immutability | monthly | `UPDATE audit_logs SET action='x'; -- expect an error` |

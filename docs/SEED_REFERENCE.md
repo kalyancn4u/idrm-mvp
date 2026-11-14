@@ -1,6 +1,8 @@
 # Seed Reference
 
-What `make seed` creates. Reference this whenever you wonder "what is this
+What `make seed` creates (development only — it refuses to run with
+`APP_ENV=production`; use `make seed-reference` there, which creates the
+regions and nothing else). Reference this whenever you wonder "what is this
 row?" or "where did this data come from?"
 
 ---
@@ -75,7 +77,7 @@ Both are verified.
 |---|---|---|---|---|---|---|
 | `IN-TG-HYD-FOOD-WATER-LOW` | incident | 10 | HYD | food, water | low, medium | 500/day per region |
 | `IN-AP-VJA-FOOD-WATER-LOW` | incident | 10 | VJA | food, water | low, medium | 300/day per region |
-| `AUTO-VERIFY-NGO-LOW-RISK` | provider | 20 | all | food, water, shelter | — | 20/day per region |
+| `AUTO-VERIFY-NGO-LOW-RISK` | provider | 20 | all | food, water, shelter | — | 20/day per region (stored only: provider policies are not evaluated yet) |
 | `REGION-BLACKOUT-VJA` | incident | 1 | VJA | (all) | (all) | inactive by default |
 
 **The blackout policy is the kill switch.** Activate it from
@@ -123,8 +125,8 @@ Fatima's enrollment appears in `/dashboard/organizations/volunteers/pending`.
 | A pending coordinator decision | Incident 3 (medical, critical, created) |
 | A dispatched unit | Incident 4 (accepted, assigned to AP Medical) |
 | Auto-approval in action | Create a new food/water request in HYD |
-| A blocked email | Try to register as `spam@bad.example` |
-| A watched IP | Log in from `203.0.113.42` (via proxy) |
+| A blocked email | Add a list entry for a signed-in citizen's email, then create a help request as them (lists are checked at request creation, not at registration) |
+| A watched IP | Listed for display only — IP entries are not enforced yet |
 | Volunteer approval flow | Approve Fatima in the console |
 | Policy kill switch | Activate `REGION-BLACKOUT-VJA` |
 

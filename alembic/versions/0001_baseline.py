@@ -5,6 +5,7 @@ Revises:
 Create Date: 2026-10-12
 """
 from __future__ import annotations
+
 import sqlalchemy as sa
 from alembic import op
 from geoalchemy2 import Geometry

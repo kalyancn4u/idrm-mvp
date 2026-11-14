@@ -85,6 +85,12 @@ def create_app() -> FastAPI:
             request_id_ctx.reset(rid_token)
             client_ip_ctx.reset(ip_token)
         response.headers["X-Request-ID"] = request_id
+        # Baseline browser-safety headers. (No Content-Security-Policy here:
+        # the API serves JSON, and the /docs page loads its UI from a CDN.)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
         return response
 
     # ---- routers ----------------------------------------------------------

@@ -6,6 +6,11 @@
 {% block content %}
 {{ page_head("Trainings", trainings|length ~ " training modules") }}
 
+<div class="flex gap-2 mb-4">
+  <a class="btn btn-outline btn-sm" href="{{ url_for('scheduling.shifts') }}">Shifts</a>
+  <a class="btn btn-outline btn-sm" href="{{ url_for('scheduling.certifications') }}">Expiring certifications</a>
+</div>
+
 <div class="grid grid-2">
   <div class="card">
     <h4>Training modules</h4>

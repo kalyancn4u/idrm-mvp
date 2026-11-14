@@ -5,7 +5,12 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from shared.models.scheduling import (
-    CalendarEvent, Certification, Shift, ShiftSignup, Training, TrainingAssignment,
+    CalendarEvent,
+    Certification,
+    Shift,
+    ShiftSignup,
+    Training,
+    TrainingAssignment,
 )
 
 

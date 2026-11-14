@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from shared.governance.evaluator import _matches_conditions, _matches_scope
 from shared.governance.schema import PolicyCaps, PolicyConditions
@@ -23,7 +24,7 @@ def test_conditions_schema_accepts_full():
 
 
 def test_conditions_schema_rejects_bad_time():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         PolicyConditions(time_of_day_start="not-a-time")
 
 

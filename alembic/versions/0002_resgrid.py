@@ -4,6 +4,7 @@ Revision ID: 0002_resgrid
 Revises: 0001_baseline
 """
 from __future__ import annotations
+
 import sqlalchemy as sa
 from alembic import op
 from geoalchemy2 import Geometry

@@ -58,7 +58,7 @@ verify that every artifact has been transcribed correctly.
 
 | File | Purpose |
 |---|---|
-| `01_extensions_and_enums.sql` | PostGIS + 22 enums |
+| `01_extensions_and_enums.sql` | PostGIS + 34 enums |
 | `02_tables.sql` | DBA-facing DDL snapshot |
 | `03_indexes.sql` | Index inventory |
 | `04_triggers.sql` | Append-only + updated_at triggers |
@@ -66,7 +66,7 @@ verify that every artifact has been transcribed correctly.
 | `06_sample_data.sql` | Demo dataset |
 | `99_reset.sql` | Destructive reset |
 
-## `shared/` (33 files)
+## `shared/` (38 files)
 
 ### Top-level (12)
 
@@ -85,7 +85,7 @@ verify that every artifact has been transcribed correctly.
 | `rate_limit.py` | Token bucket + Postgres fallback |
 | *(nothing else)* | — |
 
-### `shared/models/` (17 files)
+### `shared/models/` (15 files)
 
 | File | Purpose |
 |---|---|
@@ -127,7 +127,7 @@ verify that every artifact has been transcribed correctly.
 | `evaluator.py` | The four-step algorithm |
 | `entity_lists.py` | Block/allow/watch evaluation |
 
-## `app/` (27 files)
+## `app/` (36 files)
 
 ### Top-level (3)
 
@@ -137,7 +137,7 @@ verify that every artifact has been transcribed correctly.
 | `main.py` | FastAPI assembly |
 | *(nothing else)* | — |
 
-### `app/core/` (4 files)
+### `app/core/` (5 files)
 
 | File | Purpose |
 |---|---|
@@ -173,7 +173,7 @@ files.
 |---|---|
 | `css/design-system.css` | Cool slate variant |
 
-## `dashboard/` (63 files)
+## `dashboard/` (68 files)
 
 ### Top-level (5)
 
@@ -225,7 +225,7 @@ files.
 | `audit.py` | Trail |
 | `reports.py` | Rollups + CSV export |
 
-### `dashboard/templates/` (24 files)
+### `dashboard/templates/` (31 files)
 
 | File | Purpose |
 |---|---|
@@ -257,7 +257,7 @@ files.
 | `reports/index.html`, `reports/response_times.html` | Reports |
 | `errors/403.html`, `errors/404.html`, `errors/500.html` | Error pages |
 
-### `dashboard/static/` (4 files)
+### `dashboard/static/` (3 files)
 
 | File | Purpose |
 |---|---|
@@ -265,7 +265,7 @@ files.
 | `js/app.js` | Client behaviour |
 | `img/logo.svg` | Logo |
 
-## `scripts/` (7 files)
+## `scripts/` (8 files)
 
 | File | Purpose |
 |---|---|
@@ -278,7 +278,7 @@ files.
 | `lint_boundaries.py` | Enforce dashboard→app rule |
 | `warm_cache.py` | Prime Redis from Postgres |
 
-## `tests/` (18 files)
+## `tests/` (17 files)
 
 ### `tests/` (1)
 
@@ -322,7 +322,7 @@ files.
 | `test_no_redis.py` | Optionality proof |
 | `test_auto_approval.py` | Governance e2e |
 
-## `docs/` (32 files)
+## `docs/` (43 files)
 
 ### Top-level (14)
 

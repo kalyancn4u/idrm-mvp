@@ -1,11 +1,17 @@
 """
-Idempotent seed script — the rich demo dataset.
+Idempotent seed script.
 
-Run:  python -m scripts.seed
+    python -m scripts.seed                    demo dataset (development only)
+    python -m scripts.seed --reference-only   regions only (safe anywhere)
+
+The demo dataset creates users whose password is published in the README, so
+it refuses to run when APP_ENV=production. What it creates is described in
+docs/SEED_REFERENCE.md — keep the two in step.
 """
 
 from __future__ import annotations
 
+import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -14,13 +20,28 @@ from sqlalchemy import select, text
 from shared.config import get_settings
 from shared.db import SessionLocal
 from shared.enums import (
-    IncidentStatus, OrgType, PersonnelStatus, Priority, ServiceType,
-    UnitStatus, UserRole, UserStatus,
+    IncidentStatus,
+    OrgType,
+    PersonnelStatus,
+    Priority,
+    ServiceType,
+    UnitStatus,
+    UserRole,
+    UserStatus,
 )
 from shared.models import (
-    AutoApprovalDecision, AutoApprovalPolicy, Incident, IncidentUpdate,
-    Organization, OrganizationMember, PersonnelStatusRow, Region, Unit,
-    UnitStatusRow, User, VolunteerEnrollment,
+    AutoApprovalPolicy,
+    EntityList,
+    Incident,
+    IncidentUpdate,
+    Organization,
+    OrganizationMember,
+    PersonnelStatusRow,
+    Region,
+    Unit,
+    UnitStatusRow,
+    User,
+    VolunteerEnrollment,
 )
 from shared.security import hash_password
 
@@ -84,13 +105,13 @@ def _upsert_user(db, uid, email, name, role, *, phone=None, lang="en"):
     return user
 
 
-def _upsert_org(db, oid, name, owner_id, categories, lat, lng):
+def _upsert_org(db, oid, name, owner_id, categories, lat, lng, org_type=OrgType.ngo):
     existing = db.get(Organization, oid)
     if existing:
         return existing
     from geoalchemy2.elements import WKTElement
     org = Organization(
-        id=oid, name=name, type=OrgType.ngo, owner_user_id=owner_id,
+        id=oid, name=name, type=org_type, owner_user_id=owner_id,
         service_categories=categories,
         service_area_center=WKTElement(f"POINT({lng} {lat})", srid=4326),
         service_radius_km=25.0, capacity=500, available_capacity=420,
@@ -107,9 +128,55 @@ def _upsert_org(db, oid, name, owner_id, categories, lat, lng):
     return org
 
 
+# The starter policies — same four as sql/05_regions_and_policies.sql.
+# (code, name, applies_to, priority, region code or None, services, priorities,
+#  conditions, caps, active)
+POLICIES = [
+    ("IN-TG-HYD-FOOD-WATER-LOW", "Auto-approve low-stake food & water — Hyderabad",
+     "incident", 10, "IN-TG-HYD", ["food", "water"], ["low", "medium"],
+     {"max_estimated_cost_inr": 500, "max_per_requester_per_day": 3},
+     {"per_region_per_day": 500, "per_requester_per_day": 3}, True),
+    ("IN-AP-VJA-FOOD-WATER-LOW", "Auto-approve low-stake food & water — Vijayawada",
+     "incident", 10, "IN-AP-VJA", ["food", "water"], ["low", "medium"],
+     {"max_estimated_cost_inr": 500, "max_per_requester_per_day": 3},
+     {"per_region_per_day": 300, "per_requester_per_day": 3}, True),
+    # Provider policies are stored but not evaluated yet (the engine runs for
+    # incidents only), and these conditions are not enforced by the engine.
+    ("AUTO-VERIFY-NGO-LOW-RISK", "Auto-verify low-risk NGO providers",
+     "provider", 20, None, ["food", "water", "shelter"], [],
+     {"max_org_type_risk": "low", "min_service_radius_km": 5, "max_service_radius_km": 100},
+     {"per_region_per_day": 20}, True),
+    # Inactive by default. Switch it on to stop all auto-approval in Vijayawada.
+    ("REGION-BLACKOUT-VJA", "Blackout auto-approval in Vijayawada (inactive by default)",
+     "incident", 1, "IN-AP-VJA", [], [], {"always_reject": True}, {}, False),
+]
+
+# (entity type, value, list type, effect, reason)
+ENTITY_LISTS = [
+    ("email", "spam@bad.example", "blocklist", "hard_block", "Confirmed spam requests."),
+    ("ip_address", "203.0.113.42", "watchlist", "observe", "Multiple failed logins; observing."),
+]
+
+
 def main() -> None:
     settings = get_settings()
-    print(f"Seeding IDRM… password = {settings.seed_password}")
+    reference_only = "--reference-only" in sys.argv
+
+    if reference_only:
+        with SessionLocal() as db:
+            _upsert_regions(db)
+            db.commit()
+        print(f"✔ Reference data seeded ({len(REGIONS)} regions). No users created.")
+        return
+
+    if settings.is_production:
+        sys.exit(
+            "✖ Refusing to load the DEMO dataset with APP_ENV=production: it creates "
+            "accounts with a published password.\n"
+            "  For production run:  python -m scripts.seed --reference-only"
+        )
+
+    print("Seeding IDRM demo data…")
 
     with SessionLocal() as db:
         # --- users ---------------------------------------------------------
@@ -145,7 +212,8 @@ def main() -> None:
         _upsert_org(db, ORG_NGO, "Smiling Hearts Foundation", NGO_OWNER,
                     [ServiceType.food, ServiceType.water], 17.38, 78.48)
         _upsert_org(db, ORG_MED, "AP Medical Response", MED_OWNER,
-                    [ServiceType.medical, ServiceType.rescue], 16.51, 80.65)
+                    [ServiceType.medical, ServiceType.rescue], 16.51, 80.65,
+                    org_type=OrgType.hospital)
 
         # --- units ---------------------------------------------------------
         if not db.get(Unit, UNIT_1):
@@ -215,7 +283,17 @@ def main() -> None:
                     ))
             db.commit()
 
-        # --- volunteer enrollment (pending) -------------------------------
+        # --- volunteer enrollments (one active, one pending) ----------------
+        if not db.execute(
+            select(VolunteerEnrollment).where(VolunteerEnrollment.user_id == VOL_RAVI)
+        ).scalar_one_or_none():
+            db.add(VolunteerEnrollment(
+                user_id=VOL_RAVI, scope_type="organization", scope_id=ORG_NGO,
+                status="active", self_enrolled_at=datetime.now(UTC) - timedelta(days=10),
+                approved_by=NGO_OWNER, approved_at=datetime.now(UTC) - timedelta(days=9),
+            ))
+            db.commit()
+
         existing_enroll = db.execute(
             select(VolunteerEnrollment).where(VolunteerEnrollment.user_id == VOL_FATIMA)
         ).scalar_one_or_none()
@@ -226,22 +304,41 @@ def main() -> None:
             ))
             db.commit()
 
-        # --- region-scoped policies ---------------------------------------
-        if not db.execute(select(AutoApprovalPolicy).limit(1)).scalar_one_or_none():
-            hyd_id = next(r.id for r in regions if r.code == "IN-TG-HYD")
+        # --- auto-approval policies (one row per code; re-running is a no-op)
+        region_ids = {r.code: r.id for r in regions}
+        for (code, name, applies_to, priority, region_code, services, priorities,
+             conditions, caps, active) in POLICIES:
+            if db.execute(
+                select(AutoApprovalPolicy).where(AutoApprovalPolicy.code == code)
+            ).scalar_one_or_none():
+                continue
             db.add(AutoApprovalPolicy(
-                code="IN-TG-HYD-FOOD-WATER-LOW", name="Auto-approve food & water — Hyderabad",
-                applies_to="incident", priority=10,
-                region_scope=[hyd_id],
-                service_types=["food", "water"],
-                priorities_allowed=["low", "medium"],
-                conditions={"max_estimated_cost_inr": 500, "max_per_requester_per_day": 3},
-                caps={"per_region_per_day": 500, "per_requester_per_day": 3},
+                code=code, name=name, applies_to=applies_to, priority=priority,
+                region_scope=[region_ids[region_code]] if region_code else [],
+                service_types=services, priorities_allowed=priorities,
+                conditions=conditions, caps=caps, active=active,
             ))
-            db.commit()
+        db.commit()
+
+        # --- demo entity lists ---------------------------------------------
+        admin = db.execute(
+            select(User).where(User.email == "admin@idrm.local")
+        ).scalar_one_or_none()
+        for entity_type, value, list_type, effect, reason in ENTITY_LISTS:
+            if db.execute(
+                select(EntityList).where(EntityList.entity_value == value)
+            ).scalar_one_or_none():
+                continue
+            db.add(EntityList(
+                entity_type=entity_type, entity_value=value, list_type=list_type,
+                effect=effect, reason=reason, active=True,
+                effective_from=datetime.now(UTC),
+                created_by=admin.id if admin else None,
+            ))
+        db.commit()
 
         print("✔ Seed complete")
-        print("   admin@idrm.local / Admin#2026  (set by migration 0003)")
+        print("   admin@idrm.local / Admin#2026, or ADMIN_INITIAL_PASSWORD if it was set")
         print(f"   all seeded users / {settings.seed_password}")
 
 

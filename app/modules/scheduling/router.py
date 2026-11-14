@@ -6,17 +6,20 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
-from shared.db import async_session
 from shared.enums import ShiftType
 from shared.models.scheduling import (
-    CalendarEvent, Shift, ShiftSignup, Training, TrainingAssignment,
+    CalendarEvent,
+    Shift,
+    ShiftSignup,
+    Training,
+    TrainingAssignment,
 )
 
 router = APIRouter()

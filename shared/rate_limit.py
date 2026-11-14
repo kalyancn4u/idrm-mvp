@@ -11,6 +11,7 @@ The FastAPI dependency that turns a denial into HTTP 429 lives in
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -79,6 +80,15 @@ def allow(
     if redis_result is not None:
         return redis_result
     return _inproc.allow(name, identity, limit, per_seconds)
+
+
+async def allow_async(name: str, identity: str, limit: int, per_seconds: int = 60) -> bool:
+    """`allow` for async code: the Redis round-trip runs off the event loop."""
+    from shared import cache
+
+    if cache._client is None and time.monotonic() < cache._retry_at:
+        return _inproc.allow(name, identity, limit, per_seconds)
+    return await asyncio.to_thread(allow, name, identity, limit, per_seconds)
 
 
 def _redis_allow(

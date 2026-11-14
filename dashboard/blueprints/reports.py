@@ -6,9 +6,10 @@ import csv
 import io
 
 from flask import Blueprint, Response, render_template, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
+from dashboard.security import permission_required
 from dashboard.services.incidents import IncidentService
 from dashboard.services.reports import ReportService
 
@@ -16,7 +17,7 @@ reports_bp = Blueprint("reports", __name__, template_folder="../templates")
 
 
 @reports_bp.route("/")
-@login_required
+@permission_required("view.reports")
 def index():
     days = min(365, max(1, request.args.get("days", 30, type=int)))
     svc = ReportService(db.session)
@@ -29,8 +30,19 @@ def index():
     )
 
 
+@reports_bp.route("/response-times")
+@permission_required("view.reports")
+def response_times():
+    days = min(365, max(1, request.args.get("days", 30, type=int)))
+    return render_template(
+        "reports/response_times.html",
+        days=days,
+        response_times=ReportService(db.session).response_times(days),
+    )
+
+
 @reports_bp.route("/export/incidents.csv")
-@login_required
+@permission_required("export.data")
 def export_incidents():
     from shared.audit import log_sync
 

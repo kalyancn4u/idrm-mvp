@@ -152,7 +152,6 @@ Authorization: Bearer <access_token>
 | Role | Access TTL | Refresh TTL | Max sessions | Idle timeout |
 |---|---|---|---|---|
 | citizen | 120 min ± 20 | 180 days ± 7 | 2 | 90 days |
-| volunteer | 120 min ± 20 | 180 days ± 7 | 3 | 90 days |
 | provider | 120 min ± 20 | 180 days ± 7 | 3 | 90 days |
 | coordinator | 60 min ± 10 | 90 days ± 5 | 3 | 12 hours |
 | admin | 30 min ± 5 | 30 days ± 3 | 2 | 4 hours |
@@ -169,7 +168,9 @@ Authorization: Bearer <access_token>
 -- Incidents near a point
 SELECT id, description
   FROM incidents
- WHERE ST_DWithin(location, ST_SetSRID(ST_MakePoint(78.48, 17.40), 4326), 5000);
+ WHERE ST_DWithin(location::geography,
+                  ST_SetSRID(ST_MakePoint(78.48, 17.40), 4326)::geography,
+                  5000);   -- metres; without ::geography the unit is degrees
 
 -- Region containing a point
 SELECT code, name FROM regions
@@ -205,7 +206,9 @@ make lint              ruff + boundary check
 make fmt               auto-format
 make migrate           apply migrations
 make revision m="…"    autogenerate a migration
-make seed              load sample data
+make seed              load DEMO data (dev only)
+make seed-reference    regions only
+make test-db           create the idrm_test database
 make db-reset          drop and rebuild
 make psql              interactive SQL
 make dump              pg_dump to backups/
@@ -222,7 +225,8 @@ make smoke             curl both apps
 # Required
 DATABASE_URL=postgresql+asyncpg://...
 DATABASE_URL_SYNC=postgresql+psycopg2://...
-SECRET_KEY=...
+DASHBOARD_SECRET_KEY=...            # console session signing
+ADMIN_INITIAL_PASSWORD=...          # first admin; required in production
 
 # Optional
 REDIS_URL=redis://localhost:6379/0    # leave empty to disable cache
@@ -255,8 +259,8 @@ curl -fsS http://localhost:8000/api/v1/health | jq
 make psql
 SELECT 1;
 
-# What did the app log?
-tail -f logs/idrm.log
+# What did the app log?  (JSON lines on stdout — there is no log file)
+docker logs -f idrm-api      # or look at the terminal running `make run`
 
 # What route am I hitting?
 make routes

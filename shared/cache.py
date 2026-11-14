@@ -7,6 +7,7 @@ the caller falls through to Postgres. The cache is best-effort.
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import inspect
 import json
@@ -67,6 +68,21 @@ def safe_call(method: str, *args, **kwargs) -> Any | None:
         return None
 
 
+async def asafe_call(method: str, *args, **kwargs) -> Any | None:
+    """
+    `safe_call` for async code.
+
+    The Redis client used here is a blocking one: while it waits for the
+    network, nothing else in that thread can run. Inside the API that thread
+    is the event loop, which serves EVERY request, so one slow Redis reply
+    would stall them all. `asyncio.to_thread` runs the call on a worker
+    thread instead and lets the loop carry on.
+    """
+    if _client is None and time.monotonic() < _retry_at:
+        return None                    # known to be off / down: skip the thread hop
+    return await asyncio.to_thread(safe_call, method, *args, **kwargs)
+
+
 def reset_availability() -> None:
     """Test helper — clear the cached unavailable flag."""
     global _client, _retry_at
@@ -100,18 +116,18 @@ def cached(key_template: str, ttl: int):
             except (TypeError, IndexError, KeyError):
                 return await fn(*args, **kwargs)
 
-            raw = safe_call("get", key)
+            raw = await asafe_call("get", key)
             if raw is not None:
                 try:
                     return json.loads(raw)
                 except json.JSONDecodeError:
-                    safe_call("delete", key)
+                    await asafe_call("delete", key)
 
             result = await fn(*args, **kwargs)
 
             try:
                 payload = json.dumps(result, default=str)
-                safe_call("setex", key, ttl, payload)
+                await asafe_call("setex", key, ttl, payload)
             except (TypeError, ValueError) as exc:
                 log.debug("Cache write skipped for %s: %s", key, exc)
 
@@ -128,3 +144,10 @@ def invalidate(pattern: str) -> int:
     if not keys:
         return 0
     return safe_call("delete", *keys) or 0
+
+
+async def ainvalidate(pattern: str) -> int:
+    """`invalidate` for async code (see `asafe_call`)."""
+    if _client is None and time.monotonic() < _retry_at:
+        return 0
+    return await asyncio.to_thread(invalidate, pattern)

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func, select, text
@@ -13,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_db, require_role
 from shared.config import get_settings
 from shared.db import async_engine
-from shared.db import async_session
 from shared.models.identity import User
 from shared.models.incident import Incident
 from shared.models.organization import Organization

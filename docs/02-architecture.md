@@ -69,7 +69,7 @@ Both apps:
 7. If approved → UPDATE incident SET status='approved'
               → INSERT incident_updates
               → INSERT audit_logs (action='incident.auto_approved')
-8. Response includes auto_approval object
+8. Response includes `"auto_approved": true` and `"status": "approved"`
 ```
 
 ## Deployment
@@ -79,9 +79,12 @@ Both apps:
 | Development | uvicorn --reload | flask --debug |
 | Production | gunicorn + UvicornWorker (4) | gunicorn (4) |
 
+(`Procfile` is a lighter single-host profile: one uvicorn process and two
+dashboard workers.)
+
 Redis is optional. When absent:
 - Session lookups fall through to Postgres
-- Rate limits count from `rate_limit_events`
+- Rate limits fall back to an in-process counter (per worker process)
 - Auto-approval counters count from `auto_approval_decisions`
 - The platform is slower, never broken
 

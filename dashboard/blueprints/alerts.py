@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
 from dashboard.security import permission_required
@@ -15,7 +15,7 @@ alerts_bp = Blueprint("alerts", __name__, template_folder="../templates")
 
 
 @alerts_bp.route("/")
-@login_required
+@permission_required("view.alerts")
 def list_view():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25

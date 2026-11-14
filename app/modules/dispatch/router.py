@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.authz import is_staff, is_unit_member
 from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
-from shared.db import async_session
 from shared.models.dispatch import DispatchAssignment, DispatchOffer
 from shared.services import dispatch as dispatch_svc
 

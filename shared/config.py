@@ -42,38 +42,32 @@ class Settings(BaseSettings):
     jwt_public_key_path: str = "keys/jwt_public.pem"
 
     jwt_access_ttl_citizen_min: int = 120
-    jwt_access_ttl_volunteer_min: int = 120
     jwt_access_ttl_provider_min: int = 120
     jwt_access_ttl_coordinator_min: int = 60
     jwt_access_ttl_admin_min: int = 30
 
     jwt_access_jitter_citizen_min: int = 20
-    jwt_access_jitter_volunteer_min: int = 20
     jwt_access_jitter_provider_min: int = 20
     jwt_access_jitter_coordinator_min: int = 10
     jwt_access_jitter_admin_min: int = 5
 
     jwt_refresh_ttl_citizen_days: int = 180
-    jwt_refresh_ttl_volunteer_days: int = 180
     jwt_refresh_ttl_provider_days: int = 180
     jwt_refresh_ttl_coordinator_days: int = 90
     jwt_refresh_ttl_admin_days: int = 30
 
     jwt_refresh_jitter_citizen_days: int = 7
-    jwt_refresh_jitter_volunteer_days: int = 7
     jwt_refresh_jitter_provider_days: int = 7
     jwt_refresh_jitter_coordinator_days: int = 5
     jwt_refresh_jitter_admin_days: int = 3
 
     # ---- Session limits ---------------------------------------------------
     session_limit_citizen: int = 2
-    session_limit_volunteer: int = 3
     session_limit_provider: int = 3
     session_limit_coordinator: int = 3
     session_limit_admin: int = 2
 
     session_idle_citizen_hours: int = 2160
-    session_idle_volunteer_hours: int = 2160
     session_idle_provider_hours: int = 2160
     session_idle_coordinator_hours: int = 12
     session_idle_admin_hours: int = 4

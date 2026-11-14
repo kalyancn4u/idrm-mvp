@@ -3,6 +3,7 @@
 ## Running tests
 
 ```bash
+make test-db           # once: create + migrate + seed the idrm_test database
 make test              # Full suite
 make test-api          # FastAPI only
 make test-dashboard    # Flask only
@@ -93,6 +94,13 @@ async def test_auto_approval_creates_decision(client):
     assert body.get("auto_approved") in (True, False)
 ```
 
+## The test database
+
+Tests marked `pg` insert rows, so they run only against a database whose name
+ends in `_test`. `make test` points at `idrm_test` automatically. If no such
+database is reachable those tests are **skipped with a reason** — they are
+never allowed to "pass" on a server error.
+
 ## Markers
 
 | Marker | Meaning |
@@ -155,7 +163,8 @@ jobs:
 
 | Symptom | Cause |
 |---|---|
-| `no such table` | `db.create_all()` didn't run — check fixtures |
+| Many tests `SKIPPED … named *_test` | You are pointed at the dev database. Run `make test-db` once, then `make test` |
+| Tests `SKIPPED … needs PostgreSQL` | The database is not running: `make infra-up` |
+| `relation "..." does not exist` | The test database was never migrated: `make test-db` |
 | `RuntimeError: working outside app context` | Wrap in `with app.app_context():` |
-| 403 where 200 expected | Wrong role in the test |
-| `fn_severity_points does not exist` | On SQLite; mark `@pytest.mark.pg` |
+| A setting change is ignored in a test | Settings are cached; call `get_settings.cache_clear()` after `monkeypatch.setenv` (the autouse fixture restores it afterwards) |

@@ -1,27 +1,24 @@
 """
-Dispatch service — assign units/personnel to incidents, track response.
+Dispatch service (async, used by the API) — assign units/personnel to
+incidents, offer, respond, release.
 
-Mirrors Resgrid's "dispatcher creates a call, assigns resources,
-tracks response" workflow.
+This file only loads and saves rows. The rules themselves are in
+`shared/services/dispatch_core.py`, shared with the staff console.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.audit import log_async
-from shared.enums import DispatchOfferStatus, PersonnelStatus, UnitStatus
 from shared.models.dispatch import DispatchAssignment, DispatchOffer
-from shared.models.personnel import (
-    PersonnelStatusEvent,
-    PersonnelStatusRow,
-    UnitStatusEvent,
-    UnitStatusRow,
-)
+from shared.models.personnel import PersonnelStatusRow, UnitStatusRow
+from shared.notifications import assigned_to_incident
+from shared.services import dispatch_core as core
 
 
 async def assign(
@@ -34,21 +31,17 @@ async def assign(
     note: str | None = None,
 ) -> DispatchAssignment:
     """Assign a unit or a person to an incident. Immediate."""
-    now = datetime.now(UTC)
-    assignment = DispatchAssignment(
-        incident_id=incident_id,
-        unit_id=unit_id,
-        user_id=user_id,
-        assigned_by=actor_id,
-        assigned_at=now,
-        note=note,
+    assignment = core.new_assignment(
+        incident_id=incident_id, unit_id=unit_id, user_id=user_id,
+        actor_id=actor_id, note=note, now=datetime.now(UTC),
     )
     db.add(assignment)
 
     if unit_id:
-        await _set_unit_status(db, unit_id, UnitStatus.dispatched, actor_id, incident_id, "Dispatched")
+        await _set_unit_status(db, unit_id, core.UNIT_WHEN_ASSIGNED, actor_id, incident_id, "Dispatched")
     if user_id:
-        await _set_personnel_status(db, user_id, PersonnelStatus.responding, actor_id, incident_id, "Dispatched")
+        await _set_personnel_status(db, user_id, core.PERSON_WHEN_ASSIGNED, actor_id, incident_id, "Dispatched")
+        db.add(assigned_to_incident(user_id=user_id, incident_id=incident_id))
 
     await db.flush()
     await log_async(
@@ -72,19 +65,13 @@ async def offer(
     unit_id: uuid.UUID | None = None,
     user_id: uuid.UUID | None = None,
     actor_id: uuid.UUID,
-    ttl_minutes: int = 15,
+    ttl_minutes: int = core.DEFAULT_OFFER_TTL_MINUTES,
     note: str | None = None,
 ) -> DispatchOffer:
     """Offer the incident to a unit/person. They must accept."""
-    now = datetime.now(UTC)
-    offer_row = DispatchOffer(
-        incident_id=incident_id,
-        unit_id=unit_id,
-        user_id=user_id,
-        offered_by=actor_id,
-        offered_at=now,
-        expires_at=now + timedelta(minutes=ttl_minutes),
-        note=note,
+    offer_row = core.new_offer(
+        incident_id=incident_id, unit_id=unit_id, user_id=user_id,
+        actor_id=actor_id, now=datetime.now(UTC), ttl_minutes=ttl_minutes, note=note,
     )
     db.add(offer_row)
     await db.flush()
@@ -106,18 +93,13 @@ async def respond(
     accept: bool,
     actor_id: uuid.UUID,
 ) -> DispatchOffer:
+    """Answer an offer. Raises `dispatch_core.OfferError` (a ValueError)."""
     offer_row = await db.get(DispatchOffer, offer_id)
-    if offer_row is None or offer_row.status != DispatchOfferStatus.pending:
-        raise ValueError("Offer not found or already resolved")
-    if offer_row.expires_at and offer_row.expires_at < datetime.now(UTC):
-        offer_row.status = DispatchOfferStatus.expired
-        await db.flush()
-        raise ValueError("Offer has expired")
-
-    offer_row.status = (
-        DispatchOfferStatus.accepted if accept else DispatchOfferStatus.declined
-    )
-    offer_row.responded_at = datetime.now(UTC)
+    try:
+        core.resolve_offer(offer_row, accept=accept, now=datetime.now(UTC))
+    except core.OfferError:
+        await db.flush()        # keeps the "expired" mark; the caller commits
+        raise
 
     if accept:
         await assign(
@@ -138,15 +120,14 @@ async def release(
 ) -> None:
     """End an assignment and make the unit / person available again."""
     assignment = await db.get(DispatchAssignment, assignment_id)
-    if assignment is None or assignment.released_at is not None:
+    if not core.close_assignment(assignment, now=datetime.now(UTC)):
         return
-    assignment.released_at = datetime.now(UTC)
 
     if assignment.unit_id:
-        await _set_unit_status(db, assignment.unit_id, UnitStatus.in_quarters,
+        await _set_unit_status(db, assignment.unit_id, core.UNIT_WHEN_RELEASED,
                                actor_id, None, "Released")
     if assignment.user_id:
-        await _set_personnel_status(db, assignment.user_id, PersonnelStatus.available,
+        await _set_personnel_status(db, assignment.user_id, core.PERSON_WHEN_RELEASED,
                                     actor_id, None, "Released")
 
     await db.flush()
@@ -159,57 +140,31 @@ async def release(
     )
 
 
-async def _set_unit_status(
-    db, unit_id, status, actor_id, incident_id, note
-) -> None:
-    existing = (
+async def _set_unit_status(db, unit_id, status, actor_id, incident_id, note) -> None:
+    current = (
         await db.execute(select(UnitStatusRow).where(UnitStatusRow.unit_id == unit_id))
     ).scalar_one_or_none()
-    if existing is None:
-        existing = UnitStatusRow(unit_id=unit_id)
-        db.add(existing)
-    from_status = existing.status
-    existing.status = status
-    existing.incident_id = incident_id
-    existing.note = note
-    existing.updated_at = datetime.now(UTC)
-    db.add(
-        UnitStatusEvent(
-            unit_id=unit_id,
-            from_status=from_status,
-            to_status=status,
-            incident_id=incident_id,
-            note=note,
-            actor_id=actor_id,
-            occurred_at=datetime.now(UTC),
-        )
+    row, event, is_new = core.change_unit_status(
+        current, unit_id=unit_id, status=status, actor_id=actor_id,
+        incident_id=incident_id, note=note, now=datetime.now(UTC),
     )
+    if is_new:
+        db.add(row)
+    db.add(event)
     await db.flush()
 
 
-async def _set_personnel_status(
-    db, user_id, status, actor_id, incident_id, note
-) -> None:
-    existing = (
+async def _set_personnel_status(db, user_id, status, actor_id, incident_id, note) -> None:
+    current = (
         await db.execute(
             select(PersonnelStatusRow).where(PersonnelStatusRow.user_id == user_id)
         )
     ).scalar_one_or_none()
-    if existing is None:
-        existing = PersonnelStatusRow(user_id=user_id)
-        db.add(existing)
-    from_status = existing.status
-    existing.status = status
-    existing.note = note
-    existing.updated_at = datetime.now(UTC)
-    db.add(
-        PersonnelStatusEvent(
-            user_id=user_id,
-            from_status=from_status,
-            to_status=status,
-            note=note,
-            incident_id=incident_id,
-            occurred_at=datetime.now(UTC),
-        )
+    row, event, is_new = core.change_personnel_status(
+        current, user_id=user_id, status=status,
+        incident_id=incident_id, note=note, now=datetime.now(UTC),
     )
+    if is_new:
+        db.add(row)
+    db.add(event)
     await db.flush()

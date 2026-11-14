@@ -5,9 +5,14 @@ from __future__ import annotations
 import uuid
 
 from flask import (
-    Blueprint, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
 from dashboard.security import permission_required
@@ -19,7 +24,7 @@ policies_bp = Blueprint("policies", __name__, template_folder="../templates")
 
 
 @policies_bp.route("/")
-@login_required
+@permission_required("view.policies")
 def list_view():
     svc = PolicyService(db.session)
     return render_template("policies/list.html", policies=svc.list_policies())
@@ -46,7 +51,7 @@ def toggle(policy_id: uuid.UUID):
 
 
 @policies_bp.route("/decisions")
-@login_required
+@permission_required("view.policies")
 def decisions():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 50
@@ -63,7 +68,7 @@ def decisions():
 
 
 @policies_bp.route("/entity-lists")
-@login_required
+@permission_required("view.policies")
 def entity_lists():
     rows = PolicyService(db.session).list_entity_lists(
         entity_type=enum_or_none(EntityType, request.args.get("entity_type"))

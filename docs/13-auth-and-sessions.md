@@ -41,7 +41,6 @@
 | Role | Access TTL | Refresh TTL | Max sessions | Idle |
 |---|---|---|---|---|
 | citizen | 120 min ± 20 | 180 days ± 7 | 2 | 90 days |
-| volunteer | 120 min ± 20 | 180 days ± 7 | 3 | 90 days |
 | provider | 120 min ± 20 | 180 days ± 7 | 3 | 90 days |
 | coordinator | 60 min ± 10 | 90 days ± 5 | 3 | 12 hours |
 | admin | 30 min ± 5 | 30 days ± 3 | 2 | 4 hours |
@@ -59,12 +58,16 @@ spike.
 
 ## Refresh rotation
 
-Every refresh issues a new token and marks the old one used. If a used token
-appears again, the platform assumes theft and:
+Every refresh issues a new token and replaces the stored hash, so the old
+one no longer matches. If an old token is presented while the session is
+still alive, the platform assumes theft and:
 
 1. Revokes the entire token family
 2. Bumps `users.token_version`
-3. Logs `auth.refresh_reuse_detected` at critical severity
+3. Writes an `auth.refresh_reuse_detected` audit row
+
+A refresh on a session that is already revoked (logged out, or evicted by the
+session limit) is simply refused with `session_revoked`.
 
 ## Concurrent session limits
 
@@ -77,9 +80,8 @@ modern platform.
 | Scenario | What happens |
 |---|---|
 | Single-device logout | The session row is revoked |
-| Password change | `token_version` bumps, all sessions revoked |
+| Password change | `token_version` bumps and all sessions are revoked, including the one used to change it. The new password may not repeat the current one or any of the previous five (`password_history`) |
 | Admin force-logout | Same as above, from the dashboard |
-| Blacklist | Same as force-logout + entity list entry |
 
 ## Client contract
 

@@ -7,20 +7,23 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authz import is_org_member, member_org_ids
 from app.core.dependencies import (
-    get_current_claims, get_db, get_optional_claims, rate_limit, require_role,
+    get_current_claims,
+    get_db,
+    get_optional_claims,
+    rate_limit,
+    require_role,
 )
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
-from app.core.authz import is_org_member, member_org_ids
 from shared.audit import log_async
-from shared.db import async_session
 from shared.enums import AppliesTo, IncidentStatus, Priority, ServiceType
 from shared.geo import point_lat_lng
 from shared.governance import entity_lists, evaluator
@@ -28,6 +31,7 @@ from shared.governance.regions import find_region
 from shared.lifecycle import can_transition, next_status, role_allowed
 from shared.models.identity import User
 from shared.models.incident import Incident, IncidentUpdate
+from shared.notifications import incident_status_changed
 
 router = APIRouter()
 
@@ -154,6 +158,10 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
                           f"Auto-approved by policy {decision.policy_id}")
         await log_async(db, actor_id=None, action="incident.auto_approved",
                         resource_type="incident", resource_id=incident.id)
+        note = incident_status_changed(requester_id=requester_id, actor_id=None,
+                                       incident_id=incident.id, new_status=IncidentStatus.approved)
+        if note:
+            db.add(note)
 
     await db.flush()
     return _to_response(incident)
@@ -165,7 +173,7 @@ async def list_incidents(
     claims: Claims,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    status_filter: IncidentStatus | None = Query(None, alias="status"),
+    status_filter: Annotated[IncidentStatus | None, Query(alias="status")] = None,
     service_type: ServiceType | None = None,
     priority: Priority | None = None,
     q: str | None = None,
@@ -371,6 +379,13 @@ async def _do_transition(
                     resource_type="incident", resource_id=incident.id,
                     old_values={"status": old_status.value},
                     new_values={"status": new_status.value})
+    # Tell the requester (saved in the same transaction as the change).
+    note = incident_status_changed(
+        requester_id=incident.requester_id, actor_id=actor_id, incident_id=incident.id,
+        new_status=new_status, reason=payload.get("reason"),
+    )
+    if note:
+        db.add(note)
     await db.flush()
     return incident
 

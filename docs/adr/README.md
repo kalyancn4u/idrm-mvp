@@ -12,8 +12,9 @@ A short document capturing **one** decision:
 - **Consequences** — what follows, good and bad
 - **Alternatives** — what we rejected and why
 
-Once accepted, an ADR is not edited. If it later becomes wrong, a new ADR
-supersedes it.
+Once accepted, an ADR is not edited. If the *decision* changes, a new ADR
+supersedes it. If the code simply differs from what an ADR states, the
+correction is recorded in [ERRATA.md](ERRATA.md) — read it alongside the ADRs.
 
 ## The list
 

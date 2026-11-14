@@ -8,37 +8,64 @@ verification is unchanged. Jitter spreads refresh load — see ADR-0013.
 from __future__ import annotations
 
 import hashlib
+import os
 import random
 import uuid
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
+import bcrypt
 import jwt
-from passlib.context import CryptContext
 
 from shared.config import get_settings
 
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+BCRYPT_ROUNDS = 12
+
+# bcrypt only ever looks at the first 72 bytes of a password. Older bcrypt
+# releases cut longer input silently; newer ones raise an error. Cutting it
+# here keeps the behaviour the same on every version, and keeps hashes made
+# before this change verifiable.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _password_bytes(plain: str) -> bytes:
+    return plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+
 
 TokenType = Literal["access", "refresh"]
 
 
 # ---- Passwords ---------------------------------------------------------------
 def hash_password(plain: str) -> str:
-    return _pwd.hash(plain)
+    """bcrypt hash, cost 12. The result starts with `$2b$12$`."""
+    return bcrypt.hashpw(_password_bytes(plain), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return _pwd.verify(plain, hashed)
-    except ValueError:
-        return False
+        return bcrypt.checkpw(_password_bytes(plain), hashed.encode("ascii"))
+    except (ValueError, TypeError):
+        return False          # not a bcrypt hash
 
 
 # ---- Key loading -------------------------------------------------------------
-def _read(path: str) -> str:
+@lru_cache(maxsize=8)
+def _read_cached(path: str, mtime_ns: int) -> str:
     return Path(path).read_text(encoding="utf-8")
+
+
+def _read(path: str) -> str:
+    """
+    A key file's text, kept in memory.
+
+    Every request verifies a token, so re-reading the file each time is
+    wasted work. The file's modification time is part of the cache key: if
+    the keys are replaced on disk, the next call picks the new ones up
+    without a restart.
+    """
+    return _read_cached(path, os.stat(path).st_mtime_ns)
 
 
 # ---- Jitter ------------------------------------------------------------------

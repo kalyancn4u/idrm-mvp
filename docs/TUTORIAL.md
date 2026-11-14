@@ -324,8 +324,7 @@ You can confirm this in the audit trail: `auth.refresh_reuse_detected`, at
 You have created a few rows. To go back to a clean state:
 
 ```bash
-make db-reset     # asks for confirmation
-make seed
+make db-reset     # asks for confirmation; re-applies migrations and re-seeds
 ```
 
 The database is fresh again.

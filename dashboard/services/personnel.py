@@ -6,7 +6,10 @@ from sqlalchemy import select
 
 from shared.models.identity import User
 from shared.models.personnel import (
-    PersonnelStatusEvent, PersonnelStatusRow, Unit, UnitStatusRow,
+    PersonnelStatusEvent,
+    PersonnelStatusRow,
+    Unit,
+    UnitStatusRow,
 )
 
 

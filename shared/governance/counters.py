@@ -7,6 +7,7 @@ counting decisions in Postgres within the current window.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -81,7 +82,8 @@ async def try_acquire_caps(
     keys = [_bucket_key(k, v, day) for k, v, _ in dimensions]
     limits = [limit for _, _, limit in dimensions]
 
-    redis_result = _try_redis_lua(keys, limits)
+    # Off the event loop: the Redis client is a blocking one.
+    redis_result = await asyncio.to_thread(_try_redis_lua, keys, limits)
     if redis_result is CAP_EXCEEDED:
         return None                       # full: do NOT fall back and approve anyway
     if redis_result is not None:

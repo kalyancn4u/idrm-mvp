@@ -31,7 +31,7 @@
         <tbody>
           {% for o in rows %}
             <tr>
-              <td><strong>{{ o.name }}</strong></td>
+              <td><a href="{{ url_for('organizations.detail', org_id=o.id) }}"><strong>{{ o.name }}</strong></a></td>
               <td>{{ o.type.value if o.type.value is defined else o.type }}</td>
               <td>
                 {% for s in o.service_categories %}

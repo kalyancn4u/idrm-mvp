@@ -15,7 +15,6 @@ from app.core.authz import is_org_member, is_staff, is_unit_member
 from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
-from shared.db import async_session
 from shared.enums import ChatChannelType
 from shared.models.comms import ChatChannel, ChatMessage, Message, Notification
 

@@ -10,7 +10,9 @@ from sqlalchemy import func, select
 from shared import cache
 from shared.audit import log_sync
 from shared.models.governance import (
-    AutoApprovalDecision, AutoApprovalPolicy, EntityList,
+    AutoApprovalDecision,
+    AutoApprovalPolicy,
+    EntityList,
 )
 
 

@@ -26,6 +26,22 @@ config.set_main_option("sqlalchemy.url", get_settings().database_url)
 target_metadata = Base.metadata
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """
+    Used by `alembic revision --autogenerate`.
+
+    Autogenerate compares the live database with the ORM models and writes a
+    migration for every difference. A table that exists in the database but
+    has no model (PostGIS's `spatial_ref_sys`, and tables such as `api_keys`
+    that are created by migration only) would be seen as "extra" and the
+    generated migration would DROP it. Returning False here tells Alembic to
+    leave such tables alone.
+    """
+    if type_ == "table" and reflected and compare_to is None:
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=get_settings().database_url,
@@ -33,6 +49,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -43,6 +60,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()

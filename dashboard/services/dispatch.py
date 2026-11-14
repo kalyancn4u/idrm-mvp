@@ -9,15 +9,19 @@ from sqlalchemy import select
 
 from shared.audit import log_sync
 from shared.enums import (
-    DispatchOfferStatus, IncidentStatus, PersonnelStatus, UnitStatus,
+    IncidentStatus,
+    PersonnelStatus,
 )
 from shared.models.dispatch import DispatchAssignment, DispatchOffer
 from shared.models.identity import User
 from shared.models.incident import Incident
-from shared.models.organization import Organization
 from shared.models.personnel import (
-    PersonnelStatusEvent, PersonnelStatusRow, Unit, UnitStatusEvent, UnitStatusRow,
+    PersonnelStatusRow,
+    Unit,
+    UnitStatusRow,
 )
+from shared.notifications import assigned_to_incident
+from shared.services import dispatch_core as core
 
 
 class DispatchService:
@@ -58,20 +62,22 @@ class DispatchService:
         return [(u, s) for (u, s) in self.db.execute(stmt).all()]
 
     # ---- actions ----------------------------------------------------------
+    # Load and save only. The rules are in shared/services/dispatch_core.py,
+    # shared with the API, so the console and the API cannot disagree.
     def assign(self, incident_id: uuid.UUID, actor_id: uuid.UUID,
                unit_id: uuid.UUID | None = None, user_id: uuid.UUID | None = None,
                note: str | None = None) -> DispatchAssignment:
-        now = datetime.now(UTC)
-        a = DispatchAssignment(
+        a = core.new_assignment(
             incident_id=incident_id, unit_id=unit_id, user_id=user_id,
-            assigned_by=actor_id, assigned_at=now, note=note,
+            actor_id=actor_id, note=note, now=datetime.now(UTC),
         )
         self.db.add(a)
 
         if unit_id:
-            self._set_unit_status(unit_id, UnitStatus.dispatched, actor_id, incident_id)
+            self._set_unit_status(unit_id, core.UNIT_WHEN_ASSIGNED, actor_id, incident_id, "Dispatched")
         if user_id:
-            self._set_personnel_status(user_id, PersonnelStatus.responding, actor_id, incident_id)
+            self._set_personnel_status(user_id, core.PERSON_WHEN_ASSIGNED, actor_id, incident_id, "Dispatched")
+            self.db.add(assigned_to_incident(user_id=user_id, incident_id=incident_id))
 
         self.db.flush()
         log_sync(self.db, actor_id=actor_id, action="dispatch.assigned",
@@ -82,26 +88,26 @@ class DispatchService:
 
     def offer(self, incident_id: uuid.UUID, actor_id: uuid.UUID,
               unit_id: uuid.UUID | None, user_id: uuid.UUID | None,
-              ttl_minutes: int = 15) -> DispatchOffer:
-        from datetime import timedelta
-        now = datetime.now(UTC)
-        o = DispatchOffer(
+              ttl_minutes: int = core.DEFAULT_OFFER_TTL_MINUTES) -> DispatchOffer:
+        o = core.new_offer(
             incident_id=incident_id, unit_id=unit_id, user_id=user_id,
-            offered_by=actor_id, offered_at=now,
-            expires_at=now + timedelta(minutes=ttl_minutes),
+            actor_id=actor_id, now=datetime.now(UTC), ttl_minutes=ttl_minutes,
         )
         self.db.add(o)
         self.db.flush()
         log_sync(self.db, actor_id=actor_id, action="dispatch.offered",
-                 resource_type="incident", resource_id=incident_id)
+                 resource_type="incident", resource_id=incident_id,
+                 new_values={"offer_id": str(o.id)})
         return o
 
-    def respond(self, offer_id: uuid.UUID, accept: bool, actor_id: uuid.UUID):
+    def respond(self, offer_id: uuid.UUID, accept: bool, actor_id: uuid.UUID) -> DispatchOffer:
+        """Answer an offer. Raises `dispatch_core.OfferError` (a ValueError)."""
         o = self.db.get(DispatchOffer, offer_id)
-        if o is None or o.status != DispatchOfferStatus.pending:
-            return None
-        o.status = DispatchOfferStatus.accepted if accept else DispatchOfferStatus.declined
-        o.responded_at = datetime.now(UTC)
+        try:
+            core.resolve_offer(o, accept=accept, now=datetime.now(UTC))
+        except core.OfferError:
+            self.db.flush()
+            raise
         if accept:
             self.assign(o.incident_id, actor_id, o.unit_id, o.user_id, f"Accepted offer {o.id}")
         self.db.flush()
@@ -109,48 +115,39 @@ class DispatchService:
 
     def release(self, assignment_id: uuid.UUID, actor_id: uuid.UUID) -> None:
         a = self.db.get(DispatchAssignment, assignment_id)
-        if a and a.released_at is None:
-            a.released_at = datetime.now(UTC)
-            # Free the unit / person, mirroring shared.services.dispatch.release
-            if a.unit_id:
-                self._set_unit_status(a.unit_id, UnitStatus.in_quarters, actor_id, None)
-            if a.user_id:
-                self._set_personnel_status(a.user_id, PersonnelStatus.available, actor_id, None)
-            self.db.flush()
-            log_sync(self.db, actor_id=actor_id, action="dispatch.released",
-                     resource_type="dispatch_assignment", resource_id=assignment_id)
+        if not core.close_assignment(a, now=datetime.now(UTC)):
+            return
+        if a.unit_id:
+            self._set_unit_status(a.unit_id, core.UNIT_WHEN_RELEASED, actor_id, None, "Released")
+        if a.user_id:
+            self._set_personnel_status(a.user_id, core.PERSON_WHEN_RELEASED, actor_id, None, "Released")
+        self.db.flush()
+        log_sync(self.db, actor_id=actor_id, action="dispatch.released",
+                 resource_type="dispatch_assignment", resource_id=assignment_id)
 
     # ---- internal ---------------------------------------------------------
-    def _set_unit_status(self, unit_id, status, actor_id, incident_id):
-        existing = self.db.execute(
+    def _set_unit_status(self, unit_id, status, actor_id, incident_id, note=None):
+        current = self.db.execute(
             select(UnitStatusRow).where(UnitStatusRow.unit_id == unit_id)
         ).scalar_one_or_none()
-        if existing is None:
-            existing = UnitStatusRow(unit_id=unit_id, updated_at=datetime.now(UTC))
-            self.db.add(existing)
-        from_status = existing.status
-        existing.status = status
-        existing.incident_id = incident_id
-        existing.updated_at = datetime.now(UTC)
-        self.db.add(UnitStatusEvent(
-            unit_id=unit_id, from_status=from_status, to_status=status,
-            incident_id=incident_id, actor_id=actor_id, occurred_at=datetime.now(UTC),
-        ))
+        row, event, is_new = core.change_unit_status(
+            current, unit_id=unit_id, status=status, actor_id=actor_id,
+            incident_id=incident_id, note=note, now=datetime.now(UTC),
+        )
+        if is_new:
+            self.db.add(row)
+        self.db.add(event)
         self.db.flush()
 
-    def _set_personnel_status(self, user_id, status, actor_id, incident_id):
-        existing = self.db.execute(
+    def _set_personnel_status(self, user_id, status, actor_id, incident_id, note=None):
+        current = self.db.execute(
             select(PersonnelStatusRow).where(PersonnelStatusRow.user_id == user_id)
         ).scalar_one_or_none()
-        if existing is None:
-            existing = PersonnelStatusRow(user_id=user_id, updated_at=datetime.now(UTC))
-            self.db.add(existing)
-        from_status = existing.status
-        existing.status = status
-        existing.updated_at = datetime.now(UTC)
-        self.db.add(PersonnelStatusEvent(
-            user_id=user_id, from_status=from_status, to_status=status,
-            incident_id=incident_id, occurred_at=datetime.now(UTC),
-        ))
+        row, event, is_new = core.change_personnel_status(
+            current, user_id=user_id, status=status,
+            incident_id=incident_id, note=note, now=datetime.now(UTC),
+        )
+        if is_new:
+            self.db.add(row)
+        self.db.add(event)
         self.db.flush()
-

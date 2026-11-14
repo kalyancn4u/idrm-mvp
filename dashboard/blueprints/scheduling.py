@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from flask import Blueprint, render_template
-from flask_login import login_required
 
 from dashboard.extensions import db
+from dashboard.security import permission_required
 from dashboard.services.scheduling import SchedulingService
 
 scheduling_bp = Blueprint("scheduling", __name__, template_folder="../templates")
 
 
 @scheduling_bp.route("/shifts")
-@login_required
+@permission_required("view.scheduling")
 def shifts():
     svc = SchedulingService(db.session)
     rows = svc.upcoming_shifts()
@@ -23,7 +23,7 @@ def shifts():
 
 
 @scheduling_bp.route("/trainings")
-@login_required
+@permission_required("view.scheduling")
 def trainings():
     svc = SchedulingService(db.session)
     return render_template(
@@ -33,3 +33,11 @@ def trainings():
         certifications=svc.certifications(),
     )
 
+
+@scheduling_bp.route("/certifications")
+@permission_required("view.scheduling")
+def certifications():
+    return render_template(
+        "scheduling/certifications.html",
+        certifications=SchedulingService(db.session).certifications(expiring_days=60),
+    )

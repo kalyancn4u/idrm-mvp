@@ -35,10 +35,17 @@ export DATABASE_URL DATABASE_URL_SYNC
 PSQL           := PGPASSWORD=$(PGPASSWORD) psql -h $(PGHOST) -p $(PGPORT) -U $(PGUSER) -d $(PGDATABASE) -v ON_ERROR_STOP=1
 PSQL_MAINT     := PGPASSWORD=$(PGMAINTPASSWORD) psql -h $(PGHOST) -p $(PGPORT) -U $(PGMAINT) -v ON_ERROR_STOP=1
 
+# Tests run against their OWN database so they never write into dev data.
+TEST_PGDATABASE        ?= idrm_test
+TEST_DATABASE_URL      ?= postgresql+asyncpg://$(PGUSER):$(PGPASSWORD)@$(PGHOST):$(PGPORT)/$(TEST_PGDATABASE)
+TEST_DATABASE_URL_SYNC ?= postgresql+psycopg2://$(PGUSER):$(PGPASSWORD)@$(PGHOST):$(PGPORT)/$(TEST_PGDATABASE)
+TEST_ENV       := DATABASE_URL=$(TEST_DATABASE_URL) DATABASE_URL_SYNC=$(TEST_DATABASE_URL_SYNC)
+
+# Minimum line coverage. The CI workflow uses the same number.
+COV_MIN        ?= 60
+
 API_PORT       ?= 8000
 DASH_PORT      ?= 5000
-
-C_GREEN := \033[32m; C_CYAN := \033[36m; C_RED := \033[31m; C_RESET := \033[0m
 
 help:  ## Show every target
 	@echo -e "IDRM MVP — make targets"
@@ -86,8 +93,11 @@ revision:
 	@test -n "$(m)" || (echo "usage: make revision m='message'"; exit 1)
 	@$(ALEMBIC) revision --autogenerate -m "$(m)"
 
-seed:
+seed:  ## Demo data (users with a public password) — development only
 	@$(PY) -m scripts.seed
+
+seed-reference:  ## Regions only — safe for production
+	@$(PY) -m scripts.seed --reference-only
 
 db-reset:
 	@echo "DESTRUCTIVE — this drops every IDRM table"
@@ -123,20 +133,27 @@ routes:
 	@$(PY) -c "from dashboard import create_dashboard; d=create_dashboard(); [print(f'  {sorted(r.methods)} {r.rule}') for r in d.url_map.iter_rules() if r.endpoint != 'static']"
 
 # ---- Quality -----------------------------------------------------------------
-test:
-	@$(PYTEST) -q
+test-db:  ## Create, migrate and seed the test database ($(TEST_PGDATABASE))
+	@$(PSQL_MAINT) -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='$(TEST_PGDATABASE)'" | grep -q 1 || \
+	  $(PSQL_MAINT) -d postgres -c "CREATE DATABASE $(TEST_PGDATABASE) OWNER $(PGUSER);"
+	@$(PSQL_MAINT) -d $(TEST_PGDATABASE) -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+	@$(TEST_ENV) $(ALEMBIC) upgrade head
+	@$(TEST_ENV) $(PY) -m scripts.seed
+
+test:  ## Full suite (run `make test-db` once first for the database tests)
+	@$(TEST_ENV) $(PYTEST) -q
 
 test-api:
-	@$(PYTEST) -q tests/unit tests/api
+	@$(TEST_ENV) $(PYTEST) -q tests/unit tests/api
 
 test-dashboard:
-	@$(PYTEST) -q tests/dashboard
+	@$(TEST_ENV) $(PYTEST) -q tests/dashboard
 
 test-no-redis:
-	@REDIS_URL="" $(PYTEST) -q -m "not requires_redis"
+	@$(TEST_ENV) REDIS_URL="" $(PYTEST) -q -m "not requires_redis"
 
 test-cov:
-	@$(PYTEST) -q --cov=app --cov=dashboard --cov=shared --cov-report=term-missing --cov-fail-under=75
+	@$(TEST_ENV) $(PYTEST) -q --cov=app --cov=dashboard --cov=shared --cov-report=term-missing --cov-fail-under=$(COV_MIN)
 
 lint:
 	@$(VENV_BIN)/ruff check app dashboard shared tests scripts

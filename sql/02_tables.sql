@@ -1,7 +1,7 @@
 -- =============================================================================
 --  IDRM MVP — 02_tables.sql
---  The complete 60-table schema as readable SQL.
---  Idempotent.  This is the DBA-facing mirror of the Alembic migrations.
+--  PLACEHOLDER — this file does not contain the schema yet.
+--  The authoritative schema is the Alembic migrations (ADR-0001).
 --
 --  Sections:
 --    A. Identity (11 tables)

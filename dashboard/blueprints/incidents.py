@@ -5,9 +5,15 @@ from __future__ import annotations
 import uuid
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
 from dashboard.security import permission_required
@@ -19,7 +25,7 @@ incidents_bp = Blueprint("incidents", __name__, template_folder="../templates")
 
 
 @incidents_bp.route("/")
-@login_required
+@permission_required("view.incidents")
 def list_view():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 25
@@ -43,7 +49,7 @@ def list_view():
 
 
 @incidents_bp.route("/<uuid:incident_id>")
-@login_required
+@permission_required("view.incidents")
 def detail(incident_id: uuid.UUID):
     svc = IncidentService(db.session)
     incident = svc.get(incident_id)

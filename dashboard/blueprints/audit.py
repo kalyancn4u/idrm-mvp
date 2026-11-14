@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from flask import Blueprint, render_template, request
-from flask_login import login_required
 
 from dashboard.extensions import db
+from dashboard.security import permission_required
 from dashboard.services.audit import AuditService
 
 audit_bp = Blueprint("audit", __name__, template_folder="../templates")
 
 
 @audit_bp.route("/")
-@login_required
+@permission_required("view.audit")
 def trail():
     page = max(1, request.args.get("page", 1, type=int))   # non-numbers fall back to 1
     limit = 50

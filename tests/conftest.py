@@ -25,12 +25,32 @@ def _database_reachable() -> bool:
         return False
 
 
+def _is_test_database() -> bool:
+    """
+    The database tests INSERT rows. They may only do that in a database whose
+    name ends in `_test` — never in the development or production one.
+    Set IDRM_TESTS_ON_ANY_DB=1 to override, knowing what that means.
+    """
+    from sqlalchemy.engine import make_url
+
+    from shared.config import get_settings
+
+    if os.environ.get("IDRM_TESTS_ON_ANY_DB") == "1":
+        return True
+    name = make_url(get_settings().database_url).database or ""
+    return name.endswith("_test")
+
+
 def pytest_collection_modifyitems(config, items):
     if not any("pg" in item.keywords for item in items):
         return
-    if _database_reachable():
+    if not _is_test_database():
+        reason = "database tests only run on a database named *_test (run `make test-db`, then `make test`)"
+    elif not _database_reachable():
+        reason = "needs PostgreSQL + PostGIS (run `make infra-up test-db`)"
+    else:
         return
-    skip = pytest.mark.skip(reason="needs PostgreSQL + PostGIS (see `make infra-up migrate seed`)")
+    skip = pytest.mark.skip(reason=reason)
     for item in items:
         if "pg" in item.keywords:
             item.add_marker(skip)

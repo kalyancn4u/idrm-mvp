@@ -29,3 +29,8 @@ markers = [
 [tool.coverage.run]
 source = ["app", "dashboard", "shared"]
 omit = ["*/__init__.py"]
+
+[tool.ruff.lint.isort]
+# Our own top-level packages. Stated explicitly so every ruff version groups
+# them together, after third-party imports.
+known-first-party = ["app", "dashboard", "shared", "scripts", "tests"]

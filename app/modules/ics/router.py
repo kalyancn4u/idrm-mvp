@@ -12,10 +12,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_claims, get_db, require_role
-from shared.db import async_session
+from app.core.exceptions import AppError
 from shared.enums import IcsLaneType, IcsRole
 from shared.models.ics import (
-    IncidentCommand, IncidentLane, LaneAssignment, RunLog, RunLogEntry,
+    IncidentCommand,
+    IncidentLane,
+    LaneAssignment,
+    RunLog,
+    RunLogEntry,
 )
 
 router = APIRouter()
@@ -25,14 +29,17 @@ Claims = Annotated[dict, Depends(get_current_claims)]
 
 
 class CommandCreate(BaseModel):
-    incident_id: uuid.UUID
+    # The incident is named in the URL. This field is optional and kept only
+    # so older clients that also send it in the body keep working; if sent,
+    # it must agree with the URL.
+    incident_id: uuid.UUID | None = None
     commander_id: uuid.UUID
     ics_role: IcsRole = IcsRole.incident_commander
     objectives: str | None = None
 
 
 class LaneCreate(BaseModel):
-    incident_id: uuid.UUID
+    incident_id: uuid.UUID | None = None      # optional; see CommandCreate
     lane_type: IcsLaneType
     name: str
     parent_lane_id: uuid.UUID | None = None
@@ -62,11 +69,18 @@ class RunLogEntryCreate(BaseModel):
     hours: float | None = None
 
 
+def _same_incident(path_id: uuid.UUID, body_id: uuid.UUID | None) -> None:
+    if body_id is not None and body_id != path_id:
+        raise AppError(422, "validation_error",
+                       "incident_id in the body does not match the incident in the URL.")
+
+
 @router.post("/incidents/{incident_id}/command", status_code=status.HTTP_201_CREATED)
 async def establish_command(
     incident_id: uuid.UUID, body: CommandCreate, db: DbSession,
     claims: Annotated[dict, Depends(require_role("coordinator", "admin"))],
 ):
+    _same_incident(incident_id, body.incident_id)
     cmd = IncidentCommand(
         incident_id=incident_id, commander_id=body.commander_id,
         ics_role=body.ics_role, objectives=body.objectives,
@@ -98,6 +112,7 @@ async def create_lane(
     incident_id: uuid.UUID, body: LaneCreate, db: DbSession,
     claims: Annotated[dict, Depends(require_role("coordinator", "admin"))],
 ):
+    _same_incident(incident_id, body.incident_id)
     lane = IncidentLane(
         incident_id=incident_id, lane_type=body.lane_type, name=body.name,
         parent_lane_id=body.parent_lane_id, lead_user_id=body.lead_user_id,
@@ -115,11 +130,11 @@ async def list_lanes(incident_id: uuid.UUID, db: DbSession, claims: Claims):
         .order_by(IncidentLane.display_order.asc())
     )).scalars().all())
     return {"data": [
-        {"id": str(l.id), "name": l.name,
-         "lane_type": l.lane_type.value if hasattr(l.lane_type, "value") else l.lane_type,
-         "lead_user_id": str(l.lead_user_id) if l.lead_user_id else None,
-         "objectives": l.objectives}
-        for l in rows
+        {"id": str(lane.id), "name": lane.name,
+         "lane_type": lane.lane_type.value if hasattr(lane.lane_type, "value") else lane.lane_type,
+         "lead_user_id": str(lane.lead_user_id) if lane.lead_user_id else None,
+         "objectives": lane.objectives}
+        for lane in rows
     ]}
 
 
@@ -129,6 +144,9 @@ async def assign_to_lane(
     db: DbSession,
     claims: Annotated[dict, Depends(require_role("coordinator", "admin"))],
 ):
+    lane = await db.get(IncidentLane, lane_id)
+    if lane is None or lane.incident_id != incident_id:
+        raise AppError(404, "not_found", "That lane does not belong to this incident.")
     a = LaneAssignment(
         lane_id=lane_id, user_id=body.user_id, unit_id=body.unit_id,
         role=body.role, assigned_at=datetime.now(UTC),

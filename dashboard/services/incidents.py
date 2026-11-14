@@ -11,6 +11,7 @@ from shared.audit import log_sync
 from shared.enums import IncidentStatus
 from shared.lifecycle import can_transition, next_status
 from shared.models.incident import Incident, IncidentUpdate
+from shared.notifications import incident_status_changed
 
 
 class IncidentService:
@@ -80,6 +81,7 @@ class IncidentService:
         incident.approved_by = actor_id
         self.db.flush()
         self._add_update(incident_id, old, incident.status, actor_id, note)
+        self._notify(incident, actor_id)
         log_sync(self.db, actor_id=actor_id, action="dashboard.incident.approved",
                  resource_type="incident", resource_id=incident_id,
                  old_values={"status": old.value},
@@ -92,11 +94,20 @@ class IncidentService:
         incident.rejection_reason = reason
         self.db.flush()
         self._add_update(incident_id, old, incident.status, actor_id, reason)
+        self._notify(incident, actor_id, reason)
         log_sync(self.db, actor_id=actor_id, action="dashboard.incident.rejected",
                  resource_type="incident", resource_id=incident_id,
                  old_values={"status": old.value},
                  new_values={"status": "rejected", "reason": reason})
         return incident
+
+    def _notify(self, incident: Incident, actor_id: uuid.UUID, reason: str | None = None) -> None:
+        row = incident_status_changed(
+            requester_id=incident.requester_id, actor_id=actor_id,
+            incident_id=incident.id, new_status=incident.status, reason=reason,
+        )
+        if row:
+            self.db.add(row)
 
     def _add_update(self, incident_id, from_status, to_status, actor_id, note):
         self.db.add(IncidentUpdate(

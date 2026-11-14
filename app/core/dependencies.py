@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppError
 from shared.config import get_settings
 from shared.db import async_session
-from shared.rate_limit import allow
+from shared.rate_limit import allow_async
 from shared.security import decode_token
 from shared.sessions import SecurityError, validate_claims
 
@@ -107,7 +107,7 @@ def rate_limit(name: str, limit: int, per_seconds: int = 60):
     """Dependency: at most `limit` calls per window, counted per client address."""
 
     async def _dep(request: Request) -> None:
-        if not allow(name, client_ip(request), limit, per_seconds):
+        if not await allow_async(name, client_ip(request), limit, per_seconds):
             raise AppError(
                 429,
                 "rate_limited",

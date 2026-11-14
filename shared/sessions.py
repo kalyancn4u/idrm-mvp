@@ -16,7 +16,6 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
 
 from shared.config import get_settings
 from shared.models.identity import User, UserSession
@@ -67,7 +66,7 @@ async def create_session(
     )
     db.add(session)
     await db.flush()
-    _cache_session(session)
+    await _cache_session(session)
     return session
 
 
@@ -86,7 +85,7 @@ async def _enforce_session_limit(db: AsyncSession, user: User) -> None:
     while len(rows) >= limit:
         oldest = rows.pop(0)
         oldest.revoked_at = datetime.now(UTC)
-        _invalidate_cache(oldest.session_id)
+        await _invalidate_cache(oldest.session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +105,7 @@ async def validate_claims(db: AsyncSession, claims: dict) -> tuple[UserSession, 
         raise SecurityError("malformed_token")
 
     # Cache-first lookup for the session
-    cached = _cached_session(sid)
+    cached = await _cached_session(sid)
     user: User | None = None
 
     if cached is not None:
@@ -139,7 +138,7 @@ async def validate_claims(db: AsyncSession, claims: dict) -> tuple[UserSession, 
         if row is None:
             raise SecurityError("session_not_found")
         session, user = row
-        _cache_session(session)
+        await _cache_session(session)
 
     # ---- validity chain --------------------------------------------------
     if session.revoked_at is not None:
@@ -190,7 +189,7 @@ async def revoke_session(
         .where(*conditions)
         .values(revoked_at=datetime.now(UTC), revoked_by=by)
     )
-    _invalidate_cache(session_id)
+    await _invalidate_cache(session_id)
     return bool(result.rowcount)
 
 
@@ -229,16 +228,16 @@ async def bump_token_version(db: AsyncSession, user: User) -> None:
     """Invalidate every token issued before this moment — the nuclear option."""
     user.token_version = (user.token_version or 1) + 1
     await db.flush()
-    from shared.cache import safe_call
+    from shared.cache import asafe_call
 
-    safe_call("setex", f"idrm:userver:{user.id}", 60, str(user.token_version))
+    await asafe_call("setex", f"idrm:userver:{user.id}", 60, str(user.token_version))
 
 
 # ---------------------------------------------------------------------------
 # Cache helpers (best-effort — never raises)
 # ---------------------------------------------------------------------------
-def _cache_session(session: UserSession) -> None:
-    from shared.cache import safe_call
+async def _cache_session(session: UserSession) -> None:
+    from shared.cache import asafe_call
 
     payload = json.dumps({
         "id": str(session.id),
@@ -250,13 +249,13 @@ def _cache_session(session: UserSession) -> None:
         "last_activity_at": (session.last_activity_at or datetime.now(UTC)).isoformat(),
     })
     ttl = get_settings().session_cache_ttl_seconds
-    safe_call("setex", f"{SESSION_CACHE_PREFIX}{session.session_id}", ttl, payload)
+    await asafe_call("setex", f"{SESSION_CACHE_PREFIX}{session.session_id}", ttl, payload)
 
 
-def _cached_session(session_id: str) -> dict | None:
-    from shared.cache import safe_call
+async def _cached_session(session_id: str) -> dict | None:
+    from shared.cache import asafe_call
 
-    raw = safe_call("get", f"{SESSION_CACHE_PREFIX}{session_id}")
+    raw = await asafe_call("get", f"{SESSION_CACHE_PREFIX}{session_id}")
     if not raw:
         return None
     try:
@@ -272,18 +271,18 @@ def _cached_session(session_id: str) -> dict | None:
             "last_activity_at": datetime.fromisoformat(data["last_activity_at"]),
         }
     except Exception:
-        safe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
+        await asafe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
         return None
 
 
-def _invalidate_cache(session_id: str) -> None:
-    from shared.cache import safe_call
+async def _invalidate_cache(session_id: str) -> None:
+    from shared.cache import asafe_call
 
-    safe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
+    await asafe_call("delete", f"{SESSION_CACHE_PREFIX}{session_id}")
 
 
 async def _invalidate_cache_where(db: AsyncSession, *conditions) -> None:
     """Drop the cache entry of every session matching `conditions`."""
     stmt = select(UserSession.session_id).where(*conditions)
     for sid in (await db.execute(stmt)).scalars().all():
-        _invalidate_cache(sid)
+        await _invalidate_cache(sid)

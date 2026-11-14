@@ -5,20 +5,24 @@ from __future__ import annotations
 import uuid
 
 from flask import (
-    Blueprint, abort, flash, redirect, render_template, request, url_for,
+    Blueprint,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from dashboard.extensions import db
 from dashboard.security import permission_required
 from dashboard.services.dispatch import DispatchService
-from dashboard.services.incidents import IncidentService
 
 dispatch_bp = Blueprint("dispatch", __name__, template_folder="../templates")
 
 
 @dispatch_bp.route("/")
-@login_required
+@permission_required("view.dispatch")
 def console():
     svc = DispatchService(db.session)
     return render_template(

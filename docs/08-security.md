@@ -5,27 +5,27 @@
 | # | Threat | Impact | Control |
 |---|---|---|---|
 | T1 | Unauthorized console access | Full compromise | Flask-Login, bcrypt (cost 12), role gate |
-| T2 | Privilege escalation | Auditor → admin | `@roles_required`; `ALLOWED_DASHBOARD_ROLES` |
+| T2 | Privilege escalation | Citizen → staff | Sign-up limited to `citizen`/`provider`; `@roles_required`; `ALLOWED_DASHBOARD_ROLES`; ownership checks (`app/core/authz.py`) |
 | T3 | CSRF | Attacker triggers a state change | CSRF on every dashboard POST form |
 | T4 | XSS | Session theft | Jinja2 autoescape; strict CSP |
 | T5 | SQL injection | DB compromise | SQLAlchemy parameter binding |
 | T6 | Audit tampering | Loss of non-repudiation | PG trigger blocks UPDATE/DELETE |
-| T7 | Repudiation | "I didn't do that" | Actor username + IP on every write |
+| T7 | Repudiation | "I didn't do that" | Actor id, IP and request id on every audited write |
 | T8 | Session hijack | Account takeover | HttpOnly, SameSite=Lax, Secure in prod |
 | T9 | Clickjacking | UI redressing | `X-Frame-Options: DENY`, CSP `frame-ancestors 'none'` |
 | T10 | Data exfiltration via export | Bulk loss | Every export audit-logged |
-| T11 | Insider quietly closing requests | Controls bypassed | `accepted` / `false_positive` write notice-level events |
-| T12 | Credential stuffing | Account takeover | `failed_login_attempts`, `locked_until` |
+| T11 | Insider quietly changing a request's state | Controls bypassed | One shared state machine (`shared/lifecycle.py`); every transition writes an `incident_updates` row and an audit row |
+| T12 | Credential stuffing | Account takeover | 5 wrong passwords lock the account 15 min (API and console); rate limit per address and per email |
 
 ## Authentication
 
 ### Password storage
 
 ```python
-generate_password_hash(password, method="pbkdf2:sha256:600000")
+bcrypt.hashpw(password_bytes, bcrypt.gensalt(rounds=12))   # shared/security.py
 ```
 
-600 000 iterations, per OWASP.
+bcrypt, cost 12. Hashes start with `$2b$12$`.
 
 ### Session
 
@@ -61,6 +61,11 @@ invalidated on the next request.
 
 ### Dashboard roles
 
+Every console route is guarded by a named permission from the table in
+`dashboard/security.py` (`view.*` to see a page, `act.*` to change something,
+`export.data` for the CSV). That table is the single place to change who may
+do what.
+
 | Permission | coordinator | admin |
 |---|:-:|:-:|
 | View overview | ✅ | ✅ |
@@ -89,7 +94,7 @@ Layers 1–2 are authoritative. 3 is the backstop.
 | Completeness | Every writer calls `audit.log_*` |
 | Accuracy | Full `old_values` / `new_values` JSONB snapshots |
 | Attribution | `actor_id` + `ip_address` |
-| Immutability | `BEFORE UPDATE OR DELETE` trigger raises |
+| Immutability | `BEFORE UPDATE OR DELETE` trigger raises (see the limits below) |
 | Timeliness | Same transaction as the change |
 | Availability | Standard table; index-only reads |
 
@@ -102,6 +107,18 @@ UPDATE audit_logs SET action = 'tampered' WHERE id = (SELECT id FROM audit_logs 
 
 Run this in front of an auditor. It settles the question in 5 seconds.
 
+### What the trigger does not stop
+
+Be precise about the claim. The trigger stops `UPDATE` and `DELETE`, from the
+application and from `psql`. It does **not** stop:
+
+- `TRUNCATE` — left possible on purpose for development (ADR-0002);
+- a database role that **owns** the table dropping the trigger. In the
+  default setup the application connects as the owner.
+
+For real tamper-resistance run the application as a role that has only
+`INSERT` and `SELECT` on `audit_logs`, and keep the owner role for migrations.
+
 ## Control mapping
 
 ### ISO 27001:2022
@@ -111,7 +128,7 @@ Run this in front of an auditor. It settles the question in 5 seconds.
 | A.5.15 Access control | `auto_approval_policies`, `entity_lists` |
 | A.5.16 Identity management | `users`, `personnel_statuses` |
 | A.5.17 Authentication information | `password_hash`, `login_attempts` |
-| A.5.18 Access rights | `roles`, `organization_members`, `volunteer_enrollments` |
+| A.5.18 Access rights | `users.role`, `organization_members`, `volunteer_enrollments` |
 | A.8.2 Privileged access | `role` field, dashboard gate |
 | A.8.5 Secure authentication | bcrypt cost 12, JWT RS256 |
 | A.8.15 Logging | `audit_logs` |
@@ -130,11 +147,13 @@ Run this in front of an auditor. It settles the question in 5 seconds.
 
 | Item | Status |
 |---|---|
-| `SECRET_KEY` is random and ≥ 32 bytes | ⬜ operator |
-| `SESSION_COOKIE_SECURE=1` | ⬜ operator |
+| `DASHBOARD_SECRET_KEY` is random and ≥ 32 bytes | ⬜ operator (start-up fails in production if it is the default) |
+| `DASHBOARD_SESSION_COOKIE_SECURE=1` | ⬜ operator (start-up fails in production if it is off) |
+| `ADMIN_INITIAL_PASSWORD` set before the first migration | ⬜ operator (migration refuses in production without it) |
+| `TRUST_FORWARDED_FOR=1` only behind your own proxy | ⬜ operator |
 | TLS terminated in front of the app | ⬜ operator |
 | Database not exposed to the internet | ⬜ operator |
-| Least-privilege DB role | ✅ documented |
+| Least-privilege DB role | ⬜ operator — the default setup runs the app as the table owner |
 | No secrets in the repo | ✅ `.gitignore` |
 | CSRF on all mutating routes | ✅ Flask-WTF |
 | Security headers set | ✅ CSP, X-Frame-Options, Referrer-Policy |

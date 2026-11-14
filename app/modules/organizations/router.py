@@ -15,10 +15,11 @@ from app.core.dependencies import get_current_claims, get_db, require_role
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
 from shared.audit import log_async
-from shared.db import async_session
 from shared.enums import EnrollmentScope, EnrollmentStatus, OrgType, ServiceType
 from shared.models.organization import (
-    Organization, OrganizationMember, VolunteerEnrollment,
+    Organization,
+    OrganizationMember,
+    VolunteerEnrollment,
 )
 
 router = APIRouter()

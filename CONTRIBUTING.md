@@ -44,7 +44,8 @@ docs/        Documentation
 | `app/**` may import from `shared/**` | `make lint` |
 | `dashboard/**` may import from `shared/**` | `make lint` |
 | `dashboard/**` must NOT import from `app/**` | `make lint` (fails CI) |
-| `app/**` must NOT import from `dashboard/**` | `make lint` (fails CI) |
+| `app/**` must NOT import from `dashboard/**` | convention (not checked yet) |
+| `shared/**` must NOT import from `app/**`, `dashboard/**`, FastAPI or Flask | convention (not checked yet) |
 
 If you find yourself wanting to break the rule, the correct answer is almost
 always: *move the code to `shared/`*.
@@ -66,7 +67,7 @@ Branch name prefixes we use: `feat/`, `fix/`, `docs/`, `refactor/`,
 
 ### 2. Make your changes
 
-Follow the conventions in [CONVENTIONS.md](docs/CONVENTIONS.md).
+Follow the [Conventions](#conventions) below.
 
 ### 3. Run the pre-PR gate
 
@@ -136,9 +137,10 @@ Include:
 
 ### Database
 
-- Every table has `id` (UUID), `created_at`, `updated_at`.
+- New tables have `id` (UUID) and `created_at`; mutable ones also have
+  `updated_at` **and** the `set_updated_at()` trigger (see migration `0004`).
 - Every soft-deleted table has `deleted_at` (nullable timestamptz).
-- Every foreign key column is indexed.
+- Index a foreign key column when queries filter or join on it.
 - Every enum is created at the database level, not as a `CHECK` constraint.
 - Every schema change is a migration. Never edit an applied migration.
 
@@ -168,9 +170,11 @@ Include:
 
 ## Adding a new API endpoint
 
-1. Add a schema (Pydantic) in the module's `schemas.py` if it doesn't exist.
+1. Add a Pydantic schema next to the handler (schemas currently live at the
+   top of each `router.py`).
 2. Add the route handler in the module's `router.py`.
 3. If it writes, add an audit event via `shared.audit.log_async`.
+3b. Check *ownership*, not only role: use the helpers in `app/core/authz.py`.
 4. Add a test in `tests/api/`.
 5. Update `docs/04-api-reference.md`.
 
@@ -218,7 +222,7 @@ Open an issue with:
 - **What happened**
 - **Version** (git SHA, or tag)
 - **Environment** (OS, Python version, Postgres version)
-- **Logs** (from `logs/idrm.log`)
+- **Logs** (JSON lines from the app's stdout, and the `X-Request-ID` of the failing response)
 
 If the bug is security-relevant, do not open a public issue — email the
 maintainers directly.

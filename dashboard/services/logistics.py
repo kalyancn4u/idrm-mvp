@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from shared.models.logistics import InventoryItem, InventoryLocation, InventoryTransaction
 
