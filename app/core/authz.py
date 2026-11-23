@@ -3,6 +3,11 @@ Ownership checks shared by the routers.
 
 A *role* says what kind of user someone is. It does not say WHICH
 organization's data they may touch. These helpers answer the second question.
+
+For help requests, membership is not enough: a provider must belong to an
+organization a coordinator has VERIFIED (`verified_member_org_ids`), because
+anyone may register as a provider (ADR-0015, gap WF3). How much of a request
+each caller sees is decided in `shared/privacy.py`, not here.
 """
 
 from __future__ import annotations
@@ -24,7 +29,11 @@ def is_staff(claims: dict) -> bool:
 
 
 async def member_org_ids(db: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:
-    """Organizations the user belongs to, oldest membership first."""
+    """Organizations the user belongs to, verified or not, oldest membership first.
+
+    Not used for help requests any more — use `verified_member_org_ids`
+    there. Kept for checks where any membership is enough.
+    """
     stmt = (
         select(OrganizationMember.organization_id)
         .where(OrganizationMember.user_id == user_id)

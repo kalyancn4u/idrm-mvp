@@ -7,7 +7,8 @@ import pytest
 
 @pytest.mark.pg
 async def test_guest_can_create_incident(client):
-    """Unauthenticated requests are allowed and receive a tracking token."""
+    """A guest may raise a request and gets a tracking token — in this
+    response only (test_incident_privacy.py checks it is never shown again)."""
     payload = {
         "service_type": "water",
         "priority": "medium",

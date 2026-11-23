@@ -1,4 +1,27 @@
-"""Incidents router — create, list, lifecycle transitions, ICS integration."""
+"""
+Incidents router — create, list, view and move help requests through their
+lifecycle.
+
+Two separate questions are answered for every call:
+
+1. **May this caller act?** — `shared/lifecycle.py` (which role may do which
+   action, from which state) plus ownership checks in `_do_transition`.
+2. **How much may this caller see?** — `shared/privacy.py` (ADR-0015, the
+   "reveal ladder"). Every response goes through `_to_response`, which hides
+   what the caller may not see:
+
+   | Caller                                     | Sees                                    |
+   |--------------------------------------------|-----------------------------------------|
+   | coordinator, admin                         | every request, in full                  |
+   | citizen                                    | their own requests, in full             |
+   | provider, not in a verified organization   | nothing (403)                           |
+   | provider in a verified organization        | approved requests coarsely (~1 km, no   |
+   |                                            | description); their org's requests in   |
+   |                                            | full; never `requester_id`              |
+
+   The guest `tracking_token` is a bearer secret: it appears only in the
+   response that creates the request.
+"""
 
 from __future__ import annotations
 
@@ -65,12 +88,17 @@ def _point(lat: float, lng: float) -> WKTElement:
 
 
 def _value(v):
+    """An enum's string value; plain strings pass through (rows may hold either)."""
     return v.value if hasattr(v, "value") else v
 
 
 # ---- Who sees how much (ADR-0015; rules in shared/privacy.py) ----------------
 class Viewer:
-    """The caller, plus the verified organizations they belong to."""
+    """The caller, plus the verified organizations they belong to.
+
+    Loaded once per call so that a list of 100 requests costs one
+    membership query, not 100.
+    """
 
     def __init__(self, role: str | None, user_id: uuid.UUID | None,
                  verified_org_ids: list[uuid.UUID]):
@@ -80,6 +108,12 @@ class Viewer:
 
 
 async def _viewer(db: AsyncSession, claims: dict | None) -> Viewer:
+    """Build the Viewer from the token claims.
+
+    Only providers need their verified organizations: staff see everything
+    and citizens see only their own requests, whatever organizations they
+    belong to. No claims means an anonymous caller, who sees nothing.
+    """
     if not claims:
         return Viewer(None, None, [])
     role = claims.get("role")
@@ -89,6 +123,7 @@ async def _viewer(db: AsyncSession, claims: dict | None) -> Viewer:
 
 
 def _view_of(i: Incident, viewer: Viewer) -> View:
+    """NONE, COARSE or FULL — how much of this request this viewer may see."""
     return incident_view(
         role=viewer.role, viewer_id=viewer.user_id, status=_value(i.status),
         requester_id=i.requester_id, assigned_organization_id=i.assigned_organization_id,
@@ -99,9 +134,17 @@ def _view_of(i: Incident, viewer: Viewer) -> View:
 def _to_response(i: Incident, view: View, role: str | None) -> dict:
     """Shape one request for one viewer.
 
+    `view` must already be decided (COARSE or FULL; callers never pass NONE —
+    such requests are filtered out or refused with 403 before this point).
+
     Every view has the same keys, so clients need no special cases; hidden
-    values are null. The guest tracking token is never included here — only
-    the create response adds it (G-1).
+    values are null, and `view` / `location_precision` say which shape this is.
+    COARSE snaps the location to the ~1 km grid and hides the description,
+    rating and review. `role` decides `requester_id` separately: providers
+    never get it, even in FULL, because it links one person's requests.
+
+    The guest tracking token is never included here — only the create
+    response adds it (G-1).
     """
     lat, lng = point_lat_lng(i.location)
     full = view >= View.FULL
@@ -129,10 +172,18 @@ def _to_response(i: Incident, view: View, role: str | None) -> dict:
 
 
 def _shape(i: Incident, viewer: Viewer) -> dict:
+    """Decide the view and shape the request in one step (for lists)."""
     return _to_response(i, _view_of(i, viewer), viewer.role)
 
 
 def _require_trusted_provider(viewer: Viewer) -> None:
+    """Refuse a provider who belongs to no verified organization (gap WF3).
+
+    Anyone may register as a provider and is active at once, so a provider
+    is trusted with help requests only through a coordinator-verified
+    organization. A clear 403 tells them what to do, instead of an empty
+    list that looks like "no requests nearby".
+    """
     if viewer.role == "provider" and not viewer.verified_org_ids:
         raise AppError(403, "forbidden",
                        "Join an organization that a coordinator has verified "
@@ -140,6 +191,7 @@ def _require_trusted_provider(viewer: Viewer) -> None:
 
 
 async def _add_update(db, incident_id, from_status, to_status, actor_id, note):
+    """Append one row to the request's timeline (`incident_updates`)."""
     db.add(IncidentUpdate(
         incident_id=incident_id, from_status=from_status, to_status=to_status,
         actor_id=actor_id, note=note, created_at=datetime.now(UTC),
@@ -151,6 +203,13 @@ async def _add_update(db, incident_id, from_status, to_status, actor_id, note):
 @router.post("/incidents", status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(rate_limit("incident_create", limit=20))])
 async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims):
+    """Raise a help request — signed in, or as a guest with no account.
+
+    A guest gets a tracking token in this response, and only here. The
+    request starts in `created` and providers cannot see it until a
+    coordinator approves it, or an auto-approval policy in force for that
+    region approves it here (ADR-0014).
+    """
     requester_id = uuid.UUID(claims["sub"]) if claims else None
     if claims and claims.get("role") == "provider":
         raise AppError(403, "forbidden", "Providers cannot raise help requests.")
@@ -238,6 +297,11 @@ async def list_incidents(
     priority: Priority | None = None,
     q: str | None = None,
 ):
+    """List requests, filtered AND shaped for the caller.
+
+    Filtering happens in SQL (so counts and pages are right); shaping happens
+    per row (so a provider's approved-but-not-ours rows come back coarse).
+    """
     viewer = await _viewer(db, claims)
     _require_trusted_provider(viewer)
 
@@ -286,6 +350,7 @@ async def my_incidents(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
+    """The caller's own requests, newest first."""
     conditions = [Incident.requester_id == uuid.UUID(claims["sub"]),
                   Incident.deleted_at.is_(None)]
     total = (await db.execute(
@@ -305,6 +370,11 @@ async def my_incidents(
 
 @router.get("/incidents/track/{token}")
 async def track_guest(token: str, db: DbSession):
+    """Let a guest follow their request with the token from its creation.
+
+    Public on purpose: the token itself is the proof of ownership. It is not
+    echoed back, so this response is safe to show on screen.
+    """
     incident = (await db.execute(
         select(Incident).where(Incident.tracking_token == token)
     )).scalar_one_or_none()
@@ -323,6 +393,12 @@ async def nearby_incidents(
     radius_km: float = Query(10, gt=0, le=200),
     service_type: ServiceType | None = None,
 ):
+    """Active requests within `radius_km` of a point, at most 100.
+
+    Staff search by the exact location. Providers search by the snapped
+    (~1 km) location and see only approved requests and their own
+    organization's — see the comment on the distance condition below.
+    """
     # Declared BEFORE /incidents/{incident_id}: routes match in order, and
     # otherwise the word "nearby" is read as an incident id.
     #
@@ -366,6 +442,12 @@ async def nearby_incidents(
 async def _load_viewable(
     db: AsyncSession, incident_id: uuid.UUID, claims: dict, *, need: View = View.COARSE,
 ) -> tuple[Incident, Viewer, View]:
+    """Load one request and refuse callers whose view is below `need`.
+
+    Returns the request, the viewer and their view, so the caller can shape
+    the response without deciding the view a second time. A missing or
+    soft-deleted request is 404; one the caller may not see is 403.
+    """
     incident = await db.get(Incident, incident_id)
     if incident is None or incident.deleted_at is not None:
         raise AppError(404, "not_found", "Incident not found.")
@@ -378,12 +460,14 @@ async def _load_viewable(
 
 @router.get("/incidents/{incident_id}")
 async def get_incident(incident_id: uuid.UUID, db: DbSession, claims: Claims):
+    """One request, coarse or full depending on the caller."""
     incident, viewer, view = await _load_viewable(db, incident_id, claims)
     return _to_response(incident, view, viewer.role)
 
 
 @router.get("/incidents/{incident_id}/updates")
 async def get_updates(incident_id: uuid.UUID, db: DbSession, claims: Claims):
+    """The request's timeline: every status change, oldest first."""
     # The timeline holds free-text notes, so it needs the FULL view.
     _, viewer, _ = await _load_viewable(db, incident_id, claims, need=View.FULL)
     staff = viewer.role in ("coordinator", "admin")

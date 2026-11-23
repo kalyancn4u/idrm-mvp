@@ -44,7 +44,12 @@ class Incident(UUIDPrimaryKey, Timestamps, SoftDelete, Base):
     location: Mapped[object] = mapped_column(Geometry("POINT", srid=4326), nullable=False)
     region_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), ForeignKey("regions.id"))
     requester_id: Mapped[uuid.UUID | None] = mapped_column(PgUUID(as_uuid=True), ForeignKey("users.id"))
+    # Personal data (tier T2): shown only to whoever may see the request in
+    # full. ADR-0015 moves it to its own table (PENDING-TASKS G-4).
     guest_contact: Mapped[str | None] = mapped_column(String(20))
+    # Bearer secret (tier S) for guests: whoever holds it can follow the
+    # request. Returned only when the request is created; ADR-0015 stores
+    # only its hash (G-4).
     tracking_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     assigned_organization_id: Mapped[uuid.UUID | None] = mapped_column(
         PgUUID(as_uuid=True), ForeignKey("organizations.id")

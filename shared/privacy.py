@@ -21,7 +21,11 @@ Not yet here (later Part G tasks): the 72-hour grace window after closure
 the ~5 km grid for rural regions (D3) — regions have no rural marker yet.
 
 Pure functions only: no database, no FastAPI, no Flask (CLAUDE.md rule 1),
-so the rules can be unit-tested as a table.
+so the rules can be unit-tested as a table (tests/unit/test_privacy.py).
+
+Used by: app/modules/incidents/router.py. The staff console does not call it
+yet — only coordinators and admins can sign in there, and they see every
+request in full under these rules too.
 """
 
 from __future__ import annotations
@@ -85,5 +89,10 @@ def snap(value: float, step: float = COARSE_GRID_DEGREES) -> float:
 
     Deterministic on purpose: random noise could be averaged away by asking
     many times; a snapped value is the same every time.
+
+    The SQL in the nearby search snaps with PostGIS `ST_SnapToGrid` on the
+    same grid. The two may differ for a point lying exactly halfway between
+    grid lines; that changes which neighbouring point is shown, never the
+    precision.
     """
     return round(math.floor(value / step + 0.5) * step, 6)
