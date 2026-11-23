@@ -12,7 +12,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models.organization import OrganizationMember
+from shared.models.organization import Organization, OrganizationMember
 from shared.models.personnel import Unit, UnitMember
 
 STAFF_ROLES = frozenset({"coordinator", "admin"})
@@ -28,6 +28,26 @@ async def member_org_ids(db: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID
     stmt = (
         select(OrganizationMember.organization_id)
         .where(OrganizationMember.user_id == user_id)
+        .order_by(OrganizationMember.added_at.asc())
+    )
+    return list((await db.execute(stmt)).scalars().all())
+
+
+async def verified_member_org_ids(db: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:
+    """Organizations the user belongs to that a coordinator has VERIFIED.
+
+    Anyone may register as a provider, so membership alone does not make
+    someone trusted with help requests; a verified organization does
+    (ADR-0015, gap WF3).
+    """
+    stmt = (
+        select(OrganizationMember.organization_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(
+            OrganizationMember.user_id == user_id,
+            Organization.is_verified.is_(True),
+            Organization.deleted_at.is_(None),
+        )
         .order_by(OrganizationMember.added_at.asc())
     )
     return list((await db.execute(stmt)).scalars().all())

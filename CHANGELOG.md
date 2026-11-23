@@ -14,6 +14,15 @@ Outcome of the 2026-11 code and documentation review
 
 ### Security
 
+- **Help requests are no longer shown to every provider** (ADR-0015; Part G
+  G-1, G-2 and gap WF3). A provider must belong to an organization a
+  coordinator has verified to see or claim any request; they see approved
+  requests only coarsely (location snapped to ~1 km, no description) and
+  their own organization's requests in full; never the requester's account
+  id or requests awaiting approval. The guest tracking token is returned only
+  when the request is created. Rules: `shared/privacy.py`. Written and
+  unit-checked; the API tests (`tests/api/test_incident_privacy.py`) have
+  not been run against a database yet.
 - Sign-up accepts only the `citizen` and `provider` roles
 - The first admin password comes from `ADMIN_INITIAL_PASSWORD`; required in production
 - Both apps refuse to start in production on development defaults

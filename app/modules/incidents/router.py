@@ -10,10 +10,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.authz import is_org_member, member_org_ids
+from app.core.authz import is_org_member, verified_member_org_ids
 from app.core.dependencies import (
     get_current_claims,
     get_db,
@@ -32,6 +32,7 @@ from shared.lifecycle import can_transition, next_status, role_allowed
 from shared.models.identity import User
 from shared.models.incident import Incident, IncidentUpdate
 from shared.notifications import incident_status_changed
+from shared.privacy import COARSE_GRID_DEGREES, View, incident_view, may_see_requester_id, snap
 
 router = APIRouter()
 
@@ -63,25 +64,79 @@ def _point(lat: float, lng: float) -> WKTElement:
     return WKTElement(f"POINT({lng} {lat})", srid=4326)
 
 
-def _to_response(i: Incident) -> dict:
+def _value(v):
+    return v.value if hasattr(v, "value") else v
+
+
+# ---- Who sees how much (ADR-0015; rules in shared/privacy.py) ----------------
+class Viewer:
+    """The caller, plus the verified organizations they belong to."""
+
+    def __init__(self, role: str | None, user_id: uuid.UUID | None,
+                 verified_org_ids: list[uuid.UUID]):
+        self.role = role
+        self.user_id = user_id
+        self.verified_org_ids = verified_org_ids
+
+
+async def _viewer(db: AsyncSession, claims: dict | None) -> Viewer:
+    if not claims:
+        return Viewer(None, None, [])
+    role = claims.get("role")
+    uid = uuid.UUID(claims["sub"])
+    orgs = await verified_member_org_ids(db, uid) if role == "provider" else []
+    return Viewer(role, uid, orgs)
+
+
+def _view_of(i: Incident, viewer: Viewer) -> View:
+    return incident_view(
+        role=viewer.role, viewer_id=viewer.user_id, status=_value(i.status),
+        requester_id=i.requester_id, assigned_organization_id=i.assigned_organization_id,
+        verified_org_ids=viewer.verified_org_ids,
+    )
+
+
+def _to_response(i: Incident, view: View, role: str | None) -> dict:
+    """Shape one request for one viewer.
+
+    Every view has the same keys, so clients need no special cases; hidden
+    values are null. The guest tracking token is never included here — only
+    the create response adds it (G-1).
+    """
     lat, lng = point_lat_lng(i.location)
+    full = view >= View.FULL
+    if not full and lat is not None and lng is not None:
+        lat, lng = snap(lat), snap(lng)
     return {
         "id": str(i.id),
-        "service_type": i.service_type.value if hasattr(i.service_type, "value") else i.service_type,
-        "priority": i.priority.value if hasattr(i.priority, "value") else i.priority,
-        "status": i.status.value if hasattr(i.status, "value") else i.status,
-        "description": i.description,
+        "view": "full" if full else "coarse",
+        "location_precision": "exact" if full else "approx_1km",
+        "service_type": _value(i.service_type),
+        "priority": _value(i.priority),
+        "status": _value(i.status),
+        "description": i.description if full else None,
         "latitude": lat,
         "longitude": lng,
-        "requester_id": str(i.requester_id) if i.requester_id else None,
+        "requester_id": (str(i.requester_id)
+                         if full and i.requester_id and may_see_requester_id(role) else None),
         "assigned_organization_id": str(i.assigned_organization_id) if i.assigned_organization_id else None,
         "auto_approved": i.auto_approved,
-        "rating": i.rating,
-        "review": i.review,
-        "tracking_token": i.tracking_token,
+        "rating": i.rating if full else None,
+        "review": i.review if full else None,
         "created_at": i.created_at.isoformat(),
         "updated_at": i.updated_at.isoformat(),
     }
+
+
+def _shape(i: Incident, viewer: Viewer) -> dict:
+    return _to_response(i, _view_of(i, viewer), viewer.role)
+
+
+def _require_trusted_provider(viewer: Viewer) -> None:
+    if viewer.role == "provider" and not viewer.verified_org_ids:
+        raise AppError(403, "forbidden",
+                       "Join an organization that a coordinator has verified "
+                       "before you can see help requests.")
 
 
 async def _add_update(db, incident_id, from_status, to_status, actor_id, note):
@@ -164,7 +219,12 @@ async def create_incident(data: IncidentCreate, db: DbSession, claims: OptClaims
             db.add(note)
 
     await db.flush()
-    return _to_response(incident)
+    # The creator sees their own request in full. This is the ONLY response
+    # that carries the guest tracking token (G-1): it is a bearer secret, so
+    # it is shown once, to the guest, and never again to anyone.
+    body = _to_response(incident, View.FULL, "citizen")
+    body["tracking_token"] = incident.tracking_token
+    return body
 
 
 @router.get("/incidents")
@@ -178,12 +238,21 @@ async def list_incidents(
     priority: Priority | None = None,
     q: str | None = None,
 ):
-    role = claims.get("role")
-    uid = uuid.UUID(claims["sub"])
+    viewer = await _viewer(db, claims)
+    _require_trusted_provider(viewer)
 
     conditions = [Incident.deleted_at.is_(None)]
-    if role == "citizen":
-        conditions.append(Incident.requester_id == uid)
+    if viewer.role == "citizen":
+        conditions.append(Incident.requester_id == viewer.user_id)
+    if viewer.role == "provider":
+        own = Incident.assigned_organization_id.in_(viewer.verified_org_ids)
+        # Approved requests (coarse) and their own organization's (full) —
+        # never requests still waiting for approval (ADR-0014, ADR-0015).
+        conditions.append(or_(Incident.status == IncidentStatus.approved, own))
+        if q:
+            # Searching descriptions would reveal text the provider may not
+            # read, so a provider's search covers only their own org's work.
+            conditions.append(own)
     if status_filter:
         conditions.append(Incident.status == status_filter)
     if service_type:
@@ -207,7 +276,7 @@ async def list_incidents(
         .limit(clamp_limit(limit))
     )).scalars().all())
 
-    return paginate([_to_response(i) for i in rows], total, page, clamp_limit(limit))
+    return paginate([_shape(i, viewer) for i in rows], total, page, clamp_limit(limit))
 
 
 @router.get("/incidents/mine")
@@ -228,7 +297,10 @@ async def my_incidents(
         .offset((page - 1) * clamp_limit(limit))
         .limit(clamp_limit(limit))
     )).scalars().all())
-    return paginate([_to_response(i) for i in rows], total, page, clamp_limit(limit))
+    # Only the caller's own requests are selected, so they see them in full.
+    # (An admin calling this sees their own requests, not other people's.)
+    return paginate([_to_response(i, View.FULL, claims.get("role")) for i in rows],
+                    total, page, clamp_limit(limit))
 
 
 @router.get("/incidents/track/{token}")
@@ -238,13 +310,14 @@ async def track_guest(token: str, db: DbSession):
     )).scalar_one_or_none()
     if incident is None:
         raise AppError(404, "not_found", "No request matches that tracking token.")
-    return _to_response(incident)
+    # Holding the token makes the caller the guest who raised it.
+    return _to_response(incident, View.FULL, "citizen")
 
 
 @router.get("/incidents/nearby")
 async def nearby_incidents(
     db: DbSession,
-    _: Annotated[dict, Depends(require_role("provider", "coordinator", "admin"))],
+    claims: Annotated[dict, Depends(require_role("provider", "coordinator", "admin"))],
     latitude: float = Query(..., ge=-90, le=90),
     longitude: float = Query(..., ge=-180, le=180),
     radius_km: float = Query(10, gt=0, le=200),
@@ -255,49 +328,65 @@ async def nearby_incidents(
     #
     # The ::geography casts make ST_DWithin measure in METRES. On plain
     # geometry (SRID 4326) the distance would be in degrees.
+    viewer = await _viewer(db, claims)
+    _require_trusted_provider(viewer)
+
     conditions = [
         Incident.deleted_at.is_(None),
         Incident.status.in_([IncidentStatus.created, IncidentStatus.approved,
                              IncidentStatus.accepted, IncidentStatus.in_progress]),
-        text(
+    ]
+    if viewer.role == "provider":
+        conditions.append(or_(
+            Incident.status == IncidentStatus.approved,
+            Incident.assigned_organization_id.in_(viewer.verified_org_ids),
+        ))
+        # Measure distance from the SNAPPED point. Measuring from the exact
+        # point would let a provider find it by shrinking the radius around
+        # different centres until the request drops out.
+        conditions.append(text(
+            "ST_DWithin(ST_SnapToGrid(location, :grid)::geography, "
+            "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :r)"
+        ))
+    else:
+        conditions.append(text(
             "ST_DWithin(location::geography, "
             "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :r)"
-        ),
-    ]
-    params = {"lng": longitude, "lat": latitude, "r": radius_km * 1000}
+        ))
+    params = {"lng": longitude, "lat": latitude, "r": radius_km * 1000,
+              "grid": COARSE_GRID_DEGREES}
     if service_type:
         conditions.append(Incident.service_type == service_type)
 
     stmt = select(Incident).where(*conditions).limit(100)
     rows = list((await db.execute(stmt, params)).scalars().all())
-    return {"data": [_to_response(i) for i in rows]}
+    return {"data": [_shape(i, viewer) for i in rows]}
 
 
-def _may_view(incident: Incident, claims: dict) -> bool:
-    """Staff and providers see every request; a citizen sees only their own."""
-    role = claims.get("role")
-    if role in ("coordinator", "admin", "provider"):
-        return True
-    return role == "citizen" and incident.requester_id == uuid.UUID(claims["sub"])
-
-
-async def _load_viewable(db: AsyncSession, incident_id: uuid.UUID, claims: dict) -> Incident:
+async def _load_viewable(
+    db: AsyncSession, incident_id: uuid.UUID, claims: dict, *, need: View = View.COARSE,
+) -> tuple[Incident, Viewer, View]:
     incident = await db.get(Incident, incident_id)
     if incident is None or incident.deleted_at is not None:
         raise AppError(404, "not_found", "Incident not found.")
-    if not _may_view(incident, claims):
+    viewer = await _viewer(db, claims)
+    view = _view_of(incident, viewer)
+    if view < need:
         raise AppError(403, "forbidden", "You may not view this request.")
-    return incident
+    return incident, viewer, view
 
 
 @router.get("/incidents/{incident_id}")
 async def get_incident(incident_id: uuid.UUID, db: DbSession, claims: Claims):
-    return _to_response(await _load_viewable(db, incident_id, claims))
+    incident, viewer, view = await _load_viewable(db, incident_id, claims)
+    return _to_response(incident, view, viewer.role)
 
 
 @router.get("/incidents/{incident_id}/updates")
 async def get_updates(incident_id: uuid.UUID, db: DbSession, claims: Claims):
-    await _load_viewable(db, incident_id, claims)   # same rule as the incident itself
+    # The timeline holds free-text notes, so it needs the FULL view.
+    _, viewer, _ = await _load_viewable(db, incident_id, claims, need=View.FULL)
+    staff = viewer.role in ("coordinator", "admin")
     rows = list((await db.execute(
         select(IncidentUpdate).where(IncidentUpdate.incident_id == incident_id)
         .order_by(IncidentUpdate.created_at.asc())
@@ -306,7 +395,8 @@ async def get_updates(incident_id: uuid.UUID, db: DbSession, claims: Claims):
         {"id": str(r.id),
          "from_status": r.from_status.value if r.from_status else None,
          "to_status": r.to_status.value,
-         "actor_id": str(r.actor_id) if r.actor_id else None,
+         # Who acted is internal; only staff need the account ids.
+         "actor_id": str(r.actor_id) if staff and r.actor_id else None,
          "note": r.note,
          "created_at": r.created_at.isoformat()}
         for r in rows
@@ -343,10 +433,13 @@ async def _do_transition(
     if action == "accept":
         if incident.assigned_organization_id is not None:
             raise AppError(409, "already_accepted", "This request has already been claimed.")
-        org_ids = await member_org_ids(db, actor_id)
+        # Only a VERIFIED organization may claim (gap WF3): anyone can sign up
+        # as a provider, so a coordinator's verification is the trust check.
+        org_ids = await verified_member_org_ids(db, actor_id)
         if not org_ids:
             raise AppError(403, "forbidden",
-                           "Register or join an organization before claiming requests.")
+                           "Join an organization that a coordinator has verified "
+                           "before claiming requests.")
         org_id = payload.get("organization_id") or org_ids[0]
         if org_id not in org_ids:
             raise AppError(403, "forbidden", "You do not belong to that organization.")
@@ -390,6 +483,11 @@ async def _do_transition(
     return incident
 
 
+async def _respond(db: AsyncSession, claims: dict, incident: Incident) -> dict:
+    """After a transition, show the actor only what they may now see."""
+    return _shape(incident, await _viewer(db, claims))
+
+
 class Body(BaseModel):
     note: str | None = None
     reason: str | None = None
@@ -402,34 +500,34 @@ class Body(BaseModel):
 
 @router.post("/incidents/{incident_id}/approve")
 async def approve(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "approve", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "approve", claims, body.model_dump()))
 
 
 @router.post("/incidents/{incident_id}/reject")
 async def reject(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "reject", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "reject", claims, body.model_dump()))
 
 
 @router.post("/incidents/{incident_id}/accept")
 async def accept(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "accept", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "accept", claims, body.model_dump()))
 
 
 @router.post("/incidents/{incident_id}/start")
 async def start(incident_id: uuid.UUID, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "start", claims, {}))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "start", claims, {}))
 
 
 @router.post("/incidents/{incident_id}/complete")
 async def complete(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "complete", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "complete", claims, body.model_dump()))
 
 
 @router.post("/incidents/{incident_id}/verify")
 async def verify(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "verify", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "verify", claims, body.model_dump()))
 
 
 @router.post("/incidents/{incident_id}/cancel")
 async def cancel(incident_id: uuid.UUID, body: Body, db: DbSession, claims: Claims):
-    return _to_response(await _do_transition(db, incident_id, "cancel", claims, body.model_dump()))
+    return await _respond(db, claims, await _do_transition(db, incident_id, "cancel", claims, body.model_dump()))

@@ -85,13 +85,13 @@ User detail and role/status changes are done in the staff console, not the API.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | `/incidents` | anon or user | Create request (guest gets tracking_token) |
-| GET | `/incidents` | user | List (scoped by role) |
+| POST | `/incidents` | anon or user | Create request. A guest gets `tracking_token` **in this response only** |
+| GET | `/incidents` | user | List, scoped by role (see "Who sees what" below) |
 | GET | `/incidents/mine` | citizen | My requests |
-| GET | `/incidents/track/{token}` | anon | Guest tracking |
-| GET | `/incidents/nearby?latitude=&longitude=&radius_km=` | provider+ | Proximity search |
-| GET | `/incidents/{id}` | user | Detail |
-| GET | `/incidents/{id}/updates` | user | Timeline |
+| GET | `/incidents/track/{token}` | anon | Guest tracking (the token is not echoed back) |
+| GET | `/incidents/nearby?latitude=&longitude=&radius_km=` | provider+ | Proximity search; for providers, distance is measured from the ~1 km snapped point |
+| GET | `/incidents/{id}` | user | Detail, shaped for the caller |
+| GET | `/incidents/{id}/updates` | user | Timeline — full view only; `actor_id` shown to staff only |
 | POST | `/incidents/{id}/approve` | coordinator | Approve |
 | POST | `/incidents/{id}/reject` | coordinator | Reject |
 | POST | `/incidents/{id}/accept` | provider | Claim — only when `approved` ([ADR-0014](adr/0014-approval-first.md)) |
@@ -99,6 +99,18 @@ User detail and role/status changes are done in the staff console, not the API.
 | POST | `/incidents/{id}/complete` | provider | Mark done |
 | POST | `/incidents/{id}/verify` | citizen | Confirm + rate |
 | POST | `/incidents/{id}/cancel` | citizen/coordinator | Cancel |
+
+**Who sees what** ([ADR-0015](adr/0015-privacy-first-reveal-ladder.md); rules in `shared/privacy.py`).
+Every incident response has `view` (`full` or `coarse`) and `location_precision`
+(`exact` or `approx_1km`); hidden values are `null`.
+
+| Caller | Sees |
+|---|---|
+| Coordinator, admin | Every request, full |
+| Citizen | Own requests, full |
+| Provider **not** in a verified organization | Nothing — `403` on list, nearby, detail and accept |
+| Provider in a verified organization | `approved` requests: coarse (location snapped to 0.01°, no description, rating or review). Their organization's requests: full. Never `requester_id`. Never requests still in `created` |
+| Anyone except the creator, at creation | Never `tracking_token` |
 
 Ownership rules: a citizen sees, cancels and verifies only their own
 requests. `accept` needs the provider to belong to an organization, which is

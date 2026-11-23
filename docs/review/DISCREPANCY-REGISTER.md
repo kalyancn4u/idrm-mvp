@@ -4,6 +4,10 @@ Review date: 2026-11-14. Reviewed commit: `e8cca37`.
 
 ## Fix status (updated 2026-11-14, third round)
 
+> **Resuming this work?** What is still to do — mostly running these fixes
+> against a real database for the first time — is in
+> [PENDING-TASKS.md](PENDING-TASKS.md), in the order to do it.
+
 **Fixed:** every item, D-001 to D-114, except the parts of D-069 listed below.
 The first two rounds are in commit `2273149`; the third round (D-052 onward)
 is in the working tree, not yet committed.

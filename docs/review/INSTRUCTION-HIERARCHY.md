@@ -1,5 +1,18 @@
 # Instruction Hierarchy — a B+ tree for the docs
 
+## Status (2026-11-15) — partly implemented
+
+| Part of the proposal | State |
+|---|---|
+| Root file `CLAUDE.md` | **Exists.** About 800 tokens, not the 400 proposed below: it also carries ten standing rules and five working habits, because a new machine has no other memory of them |
+| Seven branch files in `docs/index/` | **Exist.** 170 to 300 tokens each, pointers only, each with a "one place each fact is written" table |
+| Pending work routed from the root | **Done** — `CLAUDE.md` points at `PENDING-TASKS.md` |
+| Three-line `Scope / Owner of / See also` header on each leaf | Not done |
+| Size and reachability check in `make lint` | Not done |
+| Repeated facts replaced by links | Partly — the facts were corrected in every copy during the review, but the copies still exist |
+
+The rest of this document is the original proposal, kept as the reasoning.
+
 ## What was found
 
 This repository has **no `instructions*.md` and no `CLAUDE.md`**. The

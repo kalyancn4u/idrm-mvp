@@ -250,6 +250,10 @@ make nuke              Remove venv too
 
 Plus 14 [ADRs](docs/adr/) recording every architectural decision.
 
+**Picking this project up?** Start with [CLAUDE.md](CLAUDE.md) (standing rules and
+where to look) and [docs/review/PENDING-TASKS.md](docs/review/PENDING-TASKS.md) (what is
+left to do).
+
 **Setting up a server?** See the [Infrastructure Master Plan](docs/infra/INFRASTRUCTURE-MASTER-PLAN.md):
 `bash infra/install.sh` shows the plan, `bash infra/install.sh apply` carries it out.
 
