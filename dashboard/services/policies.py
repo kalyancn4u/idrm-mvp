@@ -90,7 +90,9 @@ class PolicyService:
         cache.invalidate(f"entity_lists:{entity_type}:*")
         log_sync(self.db, actor_id=actor_id, action="entity_list.created",
                  resource_type="entity_list", resource_id=e.id,
-                 new_values={"entity_type": entity_type, "entity_value": entity_value,
+                 # The blocked value (an email, phone or IP) stays in
+                 # `entity_lists`, not in the permanent audit log (ADR-0015).
+                 new_values={"entity_type": entity_type,
                              "list_type": list_type, "effect": effect})
         return e
 

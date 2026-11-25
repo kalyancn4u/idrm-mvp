@@ -2,12 +2,22 @@
 Single source of truth for settings — read once, cached for the process.
 
 Both the FastAPI app and the Flask dashboard import from here.
+
+Every setting has a safe default, so an empty `.env` still runs. Change a
+value by putting its UPPER_CASE name in `.env` (see `.env.example`). The data
+and privacy settings, their defaults and the reasons for them are explained
+in docs/design/DATA-CONFIGURATION.md.
+
+Out-of-range values stop start-up with a clear error rather than being
+silently clamped: a privacy setting that quietly means something else is
+worse than one that refuses to load.
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -88,7 +98,46 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
 
     file_max_bytes: int = 10 * 1024 * 1024
+    # Declared but not yet used: no image is resized today (PENDING-TASKS G-3).
     image_max_dimension: int = 1920
+    # How long a download link for an uploaded file works. Short, because
+    # anyone holding the link can open the file (photos may show faces and
+    # house numbers). ADR-0015 / privacy design §8.8.
+    file_link_ttl_seconds: int = Field(default=300, ge=60, le=3600)
+
+    # ---- Privacy (ADR-0015) — used now ------------------------------------
+    # Grid that provider "coarse" locations are snapped to, in degrees.
+    # 0.01° ≈ 1.1 km. Larger = more private, less useful for planning a route.
+    privacy_coarse_grid_degrees: float = Field(default=0.01, ge=0.005, le=0.1)
+    # After a request closes, how long the assigned organization keeps the
+    # full view (for follow-up) before dropping to the coarse view. ADR-0015 D7.
+    privacy_assignee_grace_hours: int = Field(default=72, ge=0, le=720)
+    # Extra audit keys to mask, comma-separated (e.g. "aadhaar,vehicle_no").
+    # Can only ADD to the built-in list in shared/privacy.py, never remove.
+    audit_redact_extra_keys: str = ""
+
+    # ---- Privacy — reserved for tasks not built yet ------------------------
+    # Validated and documented now so the defaults are agreed in one place;
+    # no code reads them until the named PENDING-TASKS item is built.
+    privacy_rural_grid_degrees: float = Field(default=0.05, ge=0.005, le=0.5)   # G-4/G-5, D3
+    privacy_k_anonymity: int = Field(default=5, ge=2, le=100)                   # G-9
+    privacy_reveal_limit_per_hour: int = Field(default=20, ge=1, le=500)        # G-5
+    privacy_reveal_ttl_hours: int = Field(default=24, ge=1, le=168)             # G-5
+
+    # ---- Retention, in days (ADR-0015 D4) — reserved for G-7 ---------------
+    # The daily retention job (G-7) will read these. Until it exists, nothing
+    # is deleted automatically. The audit log is never deleted by this job.
+    retention_contact_days: int = Field(default=30, ge=1, le=3650)
+    retention_exact_location_days: int = Field(default=30, ge=1, le=3650)
+    retention_free_text_days: int = Field(default=90, ge=1, le=3650)
+    retention_photo_days: int = Field(default=30, ge=1, le=3650)
+    retention_message_days: int = Field(default=90, ge=1, le=3650)
+    retention_notification_days: int = Field(default=30, ge=1, le=3650)
+    retention_live_location_days: int = Field(default=7, ge=1, le=365)
+    retention_session_days: int = Field(default=90, ge=1, le=3650)
+    retention_login_attempt_days: int = Field(default=90, ge=1, le=3650)
+    retention_reveal_log_days: int = Field(default=365, ge=30, le=3650)
+    retention_deactivated_account_days: int = Field(default=365, ge=30, le=3650)
 
     # ---- Flask dashboard --------------------------------------------------
     dashboard_secret_key: str = "change-me-dashboard"
@@ -102,7 +151,32 @@ class Settings(BaseSettings):
     # ---- Seed -------------------------------------------------------------
     seed_password: str = "IDRMseed#2026"
 
+    # ---- Cross-checks -----------------------------------------------------
+    @model_validator(mode="after")
+    def _privacy_values_agree(self) -> Settings:
+        """Reject combinations that would quietly undo a privacy promise."""
+        if self.privacy_rural_grid_degrees < self.privacy_coarse_grid_degrees:
+            raise ValueError("PRIVACY_RURAL_GRID_DEGREES must be at least "
+                             "PRIVACY_COARSE_GRID_DEGREES: rural areas need the "
+                             "coarser grid, because fewer homes share a cell.")
+        if self.privacy_assignee_grace_hours > self.retention_contact_days * 24:
+            raise ValueError("PRIVACY_ASSIGNEE_GRACE_HOURS is longer than "
+                             "RETENTION_CONTACT_DAYS: the contact details would "
+                             "be deleted while the grace window still promises them.")
+        return self
+
     # ---- Derived ----------------------------------------------------------
+    @property
+    def audit_redact_keys(self) -> frozenset[str]:
+        """The extra audit keys from AUDIT_REDACT_EXTRA_KEYS, lower-cased."""
+        return frozenset(k.strip().lower() for k in self.audit_redact_extra_keys.split(",")
+                         if k.strip())
+
+    @property
+    def coarse_grid_km(self) -> float:
+        """The coarse grid as a rough distance (1° of latitude ≈ 111 km)."""
+        return round(self.privacy_coarse_grid_degrees * 111, 1)
+
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]

@@ -92,7 +92,7 @@ Layers 1–2 are authoritative. 3 is the backstop.
 | Property | How |
 |---|---|
 | Completeness | Every writer calls `audit.log_*` |
-| Accuracy | Full `old_values` / `new_values` JSONB snapshots |
+| Accuracy | `old_values` / `new_values` JSONB snapshots of what changed — **without personal values**: keys such as `email`, `phone`, `description` are stored as `"[redacted]"` (`shared.privacy.redact_audit_values`, ADR-0015), because an immutable row could never be erased |
 | Attribution | `actor_id` + `ip_address` |
 | Immutability | `BEFORE UPDATE OR DELETE` trigger raises (see the limits below) |
 | Timeliness | Same transaction as the change |

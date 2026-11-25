@@ -12,6 +12,7 @@ workspace, and the **brief** that every data-design document must satisfy.
 | **Everything about data**: model, security, privacy, engineering, warehousing, quality, governance, data across the SDLC, MVP → FFP | [docs/design/DATA-DESIGN.md](docs/design/DATA-DESIGN.md) | The master document; the brief in §2 is its contract |
 | Privacy in depth: who sees which personal field and when (reveal ladder), retention, DPDP | [docs/design/PRIVACY-FIRST-DATA-DESIGN.md](docs/design/PRIVACY-FIRST-DATA-DESIGN.md) | Detail part of the master; ACCEPTED as [ADR-0015](docs/adr/0015-privacy-first-reveal-ladder.md) |
 | What each user does, step by step, and what data each step reads, writes and reveals | [docs/design/DATA-WORKFLOWS.md](docs/design/DATA-WORKFLOWS.md) | Workflow cards W1–W27; gaps WF1–WF3 |
+| What happens to data if nothing is configured; every data/privacy/retention setting, its default, range and reason | [docs/design/DATA-CONFIGURATION.md](docs/design/DATA-CONFIGURATION.md) | Names, defaults and ranges live in `shared/config.py` |
 | What is left to build | [docs/review/PENDING-TASKS.md](docs/review/PENDING-TASKS.md) (Part G = privacy) | — |
 
 ## 2. The data-design brief
@@ -82,6 +83,7 @@ Out of scope: UI design, non-data infrastructure detail (see
 docs/design/
 ├── DATA-DESIGN.md ................ master: all thirteen areas, MVP and FFP
 ├── PRIVACY-FIRST-DATA-DESIGN.md .. part: privacy in depth (ADR-0015)
+├── DATA-CONFIGURATION.md ......... part: defaults and settings for data and policies
 └── DATA-WORKFLOWS.md ............. part: end-user workflows, data step by step (area 13)
 ```
 

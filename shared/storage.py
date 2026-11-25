@@ -57,10 +57,18 @@ def upload_bytes(key: str, data: bytes, content_type: str) -> str:
     return key
 
 
-def presigned_url(key: str, expires_seconds: int = 3600) -> str:
+def presigned_url(key: str, expires_seconds: int | None = None) -> str:
+    """A time-limited download link for one stored file.
+
+    Anyone holding the link can open the file until it expires, so the
+    default is short: FILE_LINK_TTL_SECONDS (5 minutes unless configured;
+    ADR-0015, privacy design §8.8). A caller may pass a shorter or longer
+    lifetime for a specific case.
+    """
     s = get_settings()
+    seconds = expires_seconds if expires_seconds is not None else s.file_link_ttl_seconds
     return get_client().presigned_get_object(
-        s.s3_bucket, key, expires=timedelta(seconds=expires_seconds)
+        s.s3_bucket, key, expires=timedelta(seconds=seconds)
     )
 
 

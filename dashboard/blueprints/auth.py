@@ -28,11 +28,19 @@ LOCKOUT = timedelta(minutes=15)
 
 
 def _reject(user: User | None, email: str, reason: str):
-    """Record a failed sign-in and show the same message whatever the reason."""
+    """Record a failed sign-in and show the same message whatever the reason.
+
+    The typed email is NOT written to the audit log: the row can never be
+    erased, and for an unknown user the email may belong to someone who never
+    signed up (ADR-0015). The user id (when the account exists), the reason
+    and the client IP — stored by `log_sync` — are enough to spot attacks.
+    `email` stays a parameter so a later hashed form (PENDING-TASKS G-8) can
+    use it.
+    """
     log_sync(db.session, actor_id=user.id if user else None,
              action="dashboard.login_failed", resource_type="user",
              resource_id=user.id if user else None,
-             new_values={"email": email, "reason": reason})
+             new_values={"reason": reason})
     db.session.commit()
     flash("Invalid credentials, or your role cannot access the dashboard.", "error")
     return render_template("auth/login.html"), 401

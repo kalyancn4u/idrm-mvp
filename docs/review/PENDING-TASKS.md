@@ -47,7 +47,11 @@ What "tested" has meant so far:
 
 ## Part A — Get the work onto the new machine
 
-### [ ] A-1. Push the branch (on the OLD machine)
+### [x] A-1. Push the branch (on the OLD machine) — done 2026-11-24
+
+*Done:* the branch is on GitHub. If `git push` fails on Windows with
+"unable to get local issuer certificate", use the Windows certificate store
+for that command: `git -c http.sslBackend=schannel push`.
 
 The three commits exist only on the old laptop. Until they are pushed, a new
 machine cannot get them.
@@ -355,14 +359,116 @@ Each needs `pg` tests that read like the design's §7 table; none may accept a 5
 |---|---|---|---|
 | G-1 | ✏️ **Code written 2026-11-24, not run.** Return `tracking_token` only in the create response | G2 | §8.7 |
 | G-2 | ✏️ **Code written 2026-11-24, not run** (with WF3). Providers see only `approved` requests; unless their org is assigned: snapped location, no `requester_id`, no description. Only members of a **verified** organization see or claim anything (gap WF3). To prove it: run `tests/unit/test_privacy.py` and the `pg` tests in `tests/api/test_incident_privacy.py` after B-3 | G1, G3, G4, WF3 | §7, §8.3 |
-| G-3 | Strip EXIF on upload (port `idrm-artifacts/code/app/modules/files/imaging.py`); presigned links 5 min | G6 | §8.8 |
+| G-3 | Strip EXIF on upload (port `idrm-artifacts/code/app/modules/files/imaging.py`) and resize (uses `IMAGE_MAX_DIMENSION`). *Half done 2026-11-25:* download links now last `FILE_LINK_TTL_SECONDS` (default 5 min) — written, not run | G6 | §8.8 |
 | G-4 | One Alembic revision: `incident_contacts`, `pii_reveals`, `consent_records`, new `incidents` columns, urban/rural marker on `regions`; move `guest_contact`, hash tokens | G5, G10 | §9 |
-| G-5 | Extend `shared/privacy.py` (exists since G-2: `incident_view`, `snap`) with `may_reveal`, the scrubber, the 72-h grace window (D7) and the ~5 km rural grid (D3); `POST /incidents/{id}/reveal`; break-glass + review list in the console; admins lose default case access (D5) | G1–G5 | §8.2, §8.5, §8.6 |
-| G-6 | Deny-list of personal field names in `shared/audit.py` | G7 | §8.9 |
-| G-7 | Daily retention job (30-day contacts, 72-h assignee grace) + `legal_hold` | G8, G11 | §8.11 |
+| G-5 | Extend `shared/privacy.py` with `may_reveal`, the scrubber and the ~5 km rural grid (D3, setting `PRIVACY_RURAL_GRID_DEGREES` already exists). *Done 2026-11-25, not run:* the 72-h grace window (D7, `PRIVACY_ASSIGNEE_GRACE_HOURS`), measured from `updated_at` until G-4 adds `closed_at`. Still to do: `POST /incidents/{id}/reveal`; break-glass + review list in the console; admins lose default case access (D5) | G1–G5 | §8.2, §8.5, §8.6 |
+| G-6 | ✏️ **Code written 2026-11-25, hand-checked, not run in the app** (with WF1). `shared.privacy.redact_audit_values` masks personal keys in every audit write (`shared/audit.py`); registration, failed console sign-in and both blocklist writers no longer pass the email / blocked value. Verify: V-3 | G7, WF1 | §8.9 |
+| G-7 | Daily retention job + `legal_hold`. Read the `RETENTION_*` settings (defaults and ranges already in `shared/config.py`, explained in DATA-CONFIGURATION.md §3.5) | G8, G11 | §8.11 |
 | G-8 | HMAC-hash `entity_lists` values and `login_attempts.email` | G9 | §8.10 |
 | G-9 | `public_incident_counts` view (k ≥ 5) and a reporting DB role | — | §8.12 |
 | G-10 | **Owner task:** legal counsel confirms DPDP "legitimate use" (D6) before launch | — | §14 |
+
+---
+
+## Part V — Written but waiting for a real run
+
+Work done on a machine with no database or Python 3.11. Each item was
+checked by hand (plain Python 3.10 in WSL against a copy of the unit-test
+cases, and `py_compile` on every changed file) but **has not run in the app
+or under pytest**. Do these during B-3 / B-5 and tick them here.
+
+### [ ] V-1. Reveal ladder unit tests (G-1, G-2, G-6)
+
+```bash
+pytest tests/unit/test_privacy.py -v
+```
+
+Expected: all pass (ladder table, snapping, audit redaction).
+
+### [ ] V-2. Provider visibility through the API (G-1, G-2, WF3)
+
+```bash
+make test-db && pytest tests/api/test_incident_privacy.py tests/api/test_incidents.py -v
+```
+
+Expected: all pass. Then by hand with the seed data: sign in as a seeded
+provider (their organization is verified) — `GET /incidents` shows approved
+requests with `"view": "coarse"` and rounded coordinates, and nothing in
+`created`; register a NEW provider — the same call returns 403.
+
+### [ ] V-3. No personal data in new audit rows (G-6, WF1)
+
+Register a user, fail a console sign-in once, add an entity-list entry, then:
+
+```sql
+SELECT action, new_values FROM audit_logs
+ WHERE action IN ('user.registered', 'dashboard.login_failed', 'entity_list.created')
+ ORDER BY created_at DESC LIMIT 5;
+```
+
+Expected: `{"role": …}`, `{"reason": …}`, `{"entity_type": …, "list_type": …,
+"effect": …}` — no email, phone or blocked value anywhere. Rows written
+before this change still hold emails; they cannot be edited (ADR-0003) and
+fall under the audit retention decision.
+
+### [ ] V-4. Lint
+
+```bash
+make lint
+```
+
+Expected: clean, including the boundary check (`shared/privacy.py` imports
+only the standard library).
+
+### [ ] V-5. Privacy and retention settings (2026-11-25)
+
+```bash
+pytest tests/unit/test_config_privacy.py tests/unit/test_privacy.py -v
+```
+
+Expected: all pass — defaults match ADR-0015, out-of-range values and the
+two contradictions refuse to load, the grace window and extra audit keys
+behave as tested. These need `pydantic`, which the laptop lacked, so the
+settings tests were **not** hand-checked (the privacy functions were).
+
+Then by hand, against a running API:
+
+1. Put `PRIVACY_COARSE_GRID_DEGREES=0.05` in `.env`, restart, call
+   `GET /incidents` as a seeded provider: coarse rows show
+   `"location_grid_km": 5.5` and coordinates rounded to 0.05.
+2. Put `PRIVACY_COARSE_GRID_DEGREES=1` in `.env`, restart: start-up fails
+   naming the setting. Remove it.
+3. `GET /files/{id}/download` returns a link that stops working after 5
+   minutes.
+4. Set `AUDIT_REDACT_EXTRA_KEYS=reason`, restart, fail a console sign-in:
+   the new audit row shows `"reason": "[redacted]"`. Remove it.
+5. Grace window: as the provider whose organization holds a seeded
+   `accepted` request, start and complete it; `GET /incidents/{id}` still
+   shows `"view": "full"`. With `PRIVACY_ASSIGNEE_GRACE_HOURS=0` and a
+   restart it shows `"coarse"`.
+
+---
+
+## Part H — Data-design items not yet scheduled
+
+From [DATA-DESIGN.md](../design/DATA-DESIGN.md) §11–§12 and
+[DATA-WORKFLOWS.md](../design/DATA-WORKFLOWS.md) §9. Overlaps are noted.
+
+| ID | Item | Overlaps |
+|---|---|---|
+| E1–E7 | **Owner decisions:** where reports run · separate DB roles · backup method · recovery targets · duplicate protection · data in India only · when to pick the FFP warehouse | — |
+| X1 | No backups, no restore drill — **most urgent** | I-3 |
+| X2 | App uses one database account | I-8 |
+| X3 | No TLS between app and database | — |
+| X4 | Reports run on live tables; CSV export held in memory | E1 |
+| X5 | No idempotency key; no duplicate-request flag | E5 |
+| X6 | No outbox; email/SMS cannot be sent reliably | F-3 |
+| X7 | No scheduled jobs | G-7 |
+| X8 | MinIO image `:latest` in docker-compose | I-2 |
+| X9 | No per-column sensitivity record; schema dump is a placeholder | H-3 |
+| X10 | Photos stored full size (~200 GB on a large disaster day) | G-3 |
+| X11 | No data-quality checks beyond constraints | — |
+| WF2 | Citizens cannot receive area alerts (no alerts endpoint in `app/`) | — |
 
 ---
 
@@ -386,3 +492,6 @@ Add a line here each time a task above is finished or a fault is found.
 | 2026-11-15 | — | Handover written. Nothing in Part B started. |
 | 2026-11-24 | Part G | Privacy design accepted (owner: "Adopt defaults"), ADR-0015 written, Part G added. Nothing built. |
 | 2026-11-24 | G-1, G-2, WF3 | Code written: `shared/privacy.py`, `verified_member_org_ids` in `app/core/authz.py`, incident router shaping. 32 rule checks passed in plain Python 3.10 (WSL) and all changed files compile. **Not run:** pytest, ruff, the API, the `pg` tests — no Python 3.11 environment or database on this laptop. Run them in B-3. |
+| 2026-11-24 | A-1 | Branch pushed to GitHub (needed `http.sslBackend=schannel` on this laptop). |
+| 2026-11-25 | G-6, WF1 | Audit redaction written (`shared.privacy.redact_audit_values`, applied in `shared/audit.py`); four call sites stop passing emails / blocked values. 39 redaction checks + the 32 ladder checks pass in plain Python 3.10; all changed files compile; no audit call passes an email, phone, description or blocked value (grep). Not run in the app — see Part V. Part V (verification list) and Part H (unscheduled data-design items) added. |
+| 2026-11-25 | Settings, G-5 (D7), G-3 (links) | Privacy, file-link, audit and retention settings added to `shared/config.py` with defaults from ADR-0015, ranges and two cross-checks; documented in `docs/design/DATA-CONFIGURATION.md` and `.env.example`. Active now: coarse grid, 72-h grace window, 5-min file links, extra audit keys. Reserved (validated, unused until built): rural grid, k-anonymity, reveal limits, all retention days. 86 privacy-function checks pass in plain Python 3.10; all changed files compile. Settings tests need pydantic — not run (V-5). |

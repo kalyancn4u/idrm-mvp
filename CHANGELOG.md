@@ -23,6 +23,22 @@ Outcome of the 2026-11 code and documentation review
   when the request is created. Rules: `shared/privacy.py`. Written and
   unit-checked; the API tests (`tests/api/test_incident_privacy.py`) have
   not been run against a database yet.
+- **Personal data is kept out of the audit log** (ADR-0015; Part G G-6 and
+  gap WF1). Audit rows can never be erased, so every audit write now masks
+  personal keys (`email`, `phone`, `description`, `entity_value`, …) as
+  `"[redacted]"` (`shared.privacy.redact_audit_values`). Registration, failed
+  console sign-ins and blocklist additions no longer record the email or the
+  blocked value. Older rows are unchanged. Hand-checked; not yet run in the app.
+- **Privacy and retention settings with safe defaults** (ADR-0015). New
+  `.env` settings, explained in `docs/design/DATA-CONFIGURATION.md`:
+  `PRIVACY_COARSE_GRID_DEGREES` (0.01), `PRIVACY_ASSIGNEE_GRACE_HOURS` (72 —
+  the assigned organization drops to the coarse view 72 h after a request
+  closes), `FILE_LINK_TTL_SECONDS` (300 — was a fixed 3600),
+  `AUDIT_REDACT_EXTRA_KEYS`, plus reserved rural-grid, k-anonymity,
+  reveal-limit and `RETENTION_*` settings for tasks not yet built.
+  Out-of-range or contradictory values stop start-up. Coarse incident
+  responses now say `"location_precision": "approx"` with
+  `location_grid_km` (was `"approx_1km"`). Hand-checked; not yet run.
 - Sign-up accepts only the `citizen` and `provider` roles
 - The first admin password comes from `ADMIN_INITIAL_PASSWORD`; required in production
 - Both apps refuse to start in production on development defaults

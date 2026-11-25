@@ -18,6 +18,10 @@
 > is the behaviour before this change; the target for W1, W2, W8 and W10 is
 > what the new code does (except the ~5 km rural grid and the 72-h window,
 > which come later).
+>
+> **Update 2026-11-25:** WF1 (email in the registration audit row) has code
+> written with Part G G-6 — audit writes now mask personal values. Not yet run
+> in the app (PENDING-TASKS Part V).
 
 ---
 

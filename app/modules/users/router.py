@@ -126,9 +126,12 @@ async def register(data: RegisterRequest, db: DbSession):
     )
     db.add(user)
     await db.flush()
+    # The user id (resource_id) identifies the account; the email stays in
+    # `users`, where it can be corrected or erased. The audit row cannot be
+    # (gap WF1, ADR-0015).
     await log_async(db, actor_id=user.id, action="user.registered",
                     resource_type="user", resource_id=user.id,
-                    new_values={"email": user.email, "role": data.role.value})
+                    new_values={"role": data.role.value})
     return {"user": _user_public(user)}
 
 

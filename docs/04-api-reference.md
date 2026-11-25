@@ -101,15 +101,18 @@ User detail and role/status changes are done in the staff console, not the API.
 | POST | `/incidents/{id}/cancel` | citizen/coordinator | Cancel |
 
 **Who sees what** ([ADR-0015](adr/0015-privacy-first-reveal-ladder.md); rules in `shared/privacy.py`).
-Every incident response has `view` (`full` or `coarse`) and `location_precision`
-(`exact` or `approx_1km`); hidden values are `null`.
+Every incident response has `view` (`full` or `coarse`), `location_precision`
+(`exact` or `approx`) and `location_grid_km` (the grid size of a coarse
+location, e.g. `1.1`; `null` when exact); hidden values are `null`.
+The grid and the grace window are settings — see
+[DATA-CONFIGURATION.md](design/DATA-CONFIGURATION.md).
 
 | Caller | Sees |
 |---|---|
 | Coordinator, admin | Every request, full |
 | Citizen | Own requests, full |
 | Provider **not** in a verified organization | Nothing — `403` on list, nearby, detail and accept |
-| Provider in a verified organization | `approved` requests: coarse (location snapped to 0.01°, no description, rating or review). Their organization's requests: full. Never `requester_id`. Never requests still in `created` |
+| Provider in a verified organization | `approved` requests: coarse (location snapped to `PRIVACY_COARSE_GRID_DEGREES`, default 0.01°; no description, rating or review). Their organization's requests: full, until `PRIVACY_ASSIGNEE_GRACE_HOURS` (default 72) after the request closes, then coarse. Never `requester_id`. Never requests still in `created` |
 | Anyone except the creator, at creation | Never `tracking_token` |
 
 Ownership rules: a citizen sees, cancels and verifies only their own

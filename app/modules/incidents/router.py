@@ -47,6 +47,7 @@ from app.core.dependencies import (
 from app.core.exceptions import AppError
 from app.core.pagination import clamp_limit, paginate
 from shared.audit import log_async
+from shared.config import get_settings
 from shared.enums import AppliesTo, IncidentStatus, Priority, ServiceType
 from shared.geo import point_lat_lng
 from shared.governance import entity_lists, evaluator
@@ -55,7 +56,7 @@ from shared.lifecycle import can_transition, next_status, role_allowed
 from shared.models.identity import User
 from shared.models.incident import Incident, IncidentUpdate
 from shared.notifications import incident_status_changed
-from shared.privacy import COARSE_GRID_DEGREES, View, incident_view, may_see_requester_id, snap
+from shared.privacy import View, incident_view, may_see_requester_id, snap
 
 router = APIRouter()
 
@@ -123,11 +124,20 @@ async def _viewer(db: AsyncSession, claims: dict | None) -> Viewer:
 
 
 def _view_of(i: Incident, viewer: Viewer) -> View:
-    """NONE, COARSE or FULL — how much of this request this viewer may see."""
+    """NONE, COARSE or FULL — how much of this request this viewer may see.
+
+    The grace window after closure (PRIVACY_ASSIGNEE_GRACE_HOURS) is measured
+    from `updated_at`, the last time the row changed. For a closed request
+    that is normally the closing transition. It is an approximation until
+    PENDING-TASKS G-4 adds a real `closed_at` column: a later edit (none exists
+    today) would restart the window.
+    """
     return incident_view(
         role=viewer.role, viewer_id=viewer.user_id, status=_value(i.status),
         requester_id=i.requester_id, assigned_organization_id=i.assigned_organization_id,
         verified_org_ids=viewer.verified_org_ids,
+        closed_at=i.updated_at, now=datetime.now(UTC),
+        grace_hours=get_settings().privacy_assignee_grace_hours,
     )
 
 
@@ -139,21 +149,25 @@ def _to_response(i: Incident, view: View, role: str | None) -> dict:
 
     Every view has the same keys, so clients need no special cases; hidden
     values are null, and `view` / `location_precision` say which shape this is.
-    COARSE snaps the location to the ~1 km grid and hides the description,
-    rating and review. `role` decides `requester_id` separately: providers
+    COARSE snaps the location to the configured grid
+    (PRIVACY_COARSE_GRID_DEGREES, ~1 km by default; `location_grid_km` says
+    how coarse) and hides the description, rating and review. `role` decides `requester_id` separately: providers
     never get it, even in FULL, because it links one person's requests.
 
     The guest tracking token is never included here — only the create
     response adds it (G-1).
     """
+    s = get_settings()
     lat, lng = point_lat_lng(i.location)
     full = view >= View.FULL
+    grid = s.privacy_coarse_grid_degrees
     if not full and lat is not None and lng is not None:
-        lat, lng = snap(lat), snap(lng)
+        lat, lng = snap(lat, grid), snap(lng, grid)
     return {
         "id": str(i.id),
         "view": "full" if full else "coarse",
-        "location_precision": "exact" if full else "approx_1km",
+        "location_precision": "exact" if full else "approx",
+        "location_grid_km": None if full else s.coarse_grid_km,
         "service_type": _value(i.service_type),
         "priority": _value(i.priority),
         "status": _value(i.status),
@@ -430,7 +444,7 @@ async def nearby_incidents(
             "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :r)"
         ))
     params = {"lng": longitude, "lat": latitude, "r": radius_km * 1000,
-              "grid": COARSE_GRID_DEGREES}
+              "grid": get_settings().privacy_coarse_grid_degrees}
     if service_type:
         conditions.append(Incident.service_type == service_type)
 

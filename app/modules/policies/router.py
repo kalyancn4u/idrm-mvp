@@ -213,8 +213,9 @@ async def create_list_entry(
     await db.flush()
     await log_async(db, actor_id=uuid.UUID(claims["sub"]), action="entity_list.created",
                     resource_type="entity_list", resource_id=e.id,
+                    # The blocked value (an email, phone or IP) stays in
+                    # `entity_lists`, not in the permanent audit log (ADR-0015).
                     new_values={"entity_type": body.entity_type.value,
-                                "entity_value": body.entity_value,
                                 "list_type": body.list_type.value,
                                 "effect": body.effect.value})
     await cache.ainvalidate(f"entity_lists:{body.entity_type.value}:*")

@@ -12,6 +12,9 @@
 > summarises it in §3 and does not repeat it. **End-user workflows** — every
 > task of every user, with the data read, written and revealed at each step —
 > live in [DATA-WORKFLOWS.md](DATA-WORKFLOWS.md) (area 13; summary in §1.1).
+> **Defaults and settings** — what happens to data if nothing is configured,
+> and every privacy, file, audit and retention setting — are in
+> [DATA-CONFIGURATION.md](DATA-CONFIGURATION.md).
 >
 > **How it was checked (2026-11-24):** by reading the models, migrations,
 > routers, dashboard services, Makefile, `.env.example`, `docker-compose.yml`,
