@@ -1,10 +1,24 @@
 # =============================================================================
 #  IDRM MVP — git attributes
 #  Normalises line endings and marks binary files.
+#
+#  Why: the code runs on Linux. A shell script or Makefile checked out with
+#  Windows line endings (CRLF) fails there ("bad interpreter: /bin/bash^M",
+#  "missing separator"). `eol=lf` makes every checkout use LF, on every
+#  operating system, whatever the user's core.autocrlf setting says.
+#
+#  This file must sit at the repository ROOT: git applies a .gitattributes
+#  only to the directory it is in and below. (Until 2026-11-25 it was in
+#  docs/ by mistake and protected only the documentation. PENDING-TASKS H-2.)
 # =============================================================================
 
-# ---- Default: normalise line endings to LF in the repo ----------------------
+# ---- Default: normalise line endings to LF in the repo and on checkout ------
 * text=auto eol=lf
+
+# ---- Windows-only scripts need CRLF (none exist yet) -------------------------
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+*.ps1      text eol=crlf
 
 # ---- Explicit text types ----------------------------------------------------
 *.py       text diff=python

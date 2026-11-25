@@ -58,6 +58,11 @@ Outcome of the 2026-11 code and documentation review
 
 ### Changed
 
+- **Line endings are LF everywhere**: `.gitattributes` moved from `docs/`
+  (where it protected only the documentation) to the repository root, so
+  shell scripts, the Makefile and Python files are checked out with LF on
+  Windows too. No stored file changed. Existing Windows checkouts: run
+  `git rm -r --cached -q . && git reset -q --hard` once on a clean tree.
 - **The import-boundary check covers all three rules**: `app` and
   `dashboard` may not import each other, and `shared` may not import either,
   nor FastAPI/Starlette or Flask/`flask_*`. `scripts/lint_boundaries.py`
