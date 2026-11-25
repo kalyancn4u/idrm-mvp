@@ -80,6 +80,9 @@ Outcome of the 2026-11 code and documentation review
 
 ### Fixed
 
+- `docs/MANIFEST.md` lists every tracked file (272, was 227) with correct
+  folder counts, drops five entries for files that do not exist, and checks
+  completeness with `git ls-files | wc -l`.
 - `make install`, `make db-create`, the CI workflow, console start-up and login, the seed
 - `/incidents/nearby` was unreachable and measured in degrees
 - Incident responses always had null coordinates
