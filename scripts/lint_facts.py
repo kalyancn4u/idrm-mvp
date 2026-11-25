@@ -27,6 +27,12 @@ every copy against it:
 Any markdown table whose header starts like one of these is checked, wherever
 it is, so a new copy is checked from the day it is written.
 
+It also checks setting NAMES, because a wrong name fails silently (the
+settings loader ignores names it does not know): every setting in
+shared/config.py has a line in .env.example, every name in .env.example is a
+setting, and a backticked name in the docs that looks like a setting is one.
+See "Setting names" below for what counts and what is exempt.
+
 How it reads the code
 ---------------------
 It parses the two Python files with `ast` instead of importing them, so it
@@ -118,17 +124,27 @@ def lifecycle_rules(root: Path) -> dict[str, tuple[set[str], str, set[str]]]:
     return rules
 
 
-def settings_defaults(root: Path) -> dict[str, int]:
-    """Integer defaults of the Settings class in shared/config.py."""
+def _settings_class(root: Path) -> ast.ClassDef:
     tree = _module(root / "shared" / "config.py")
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name == "Settings":
-            break
-    else:
-        raise CodeError("shared/config.py has no class Settings")
+            return node
+    raise CodeError("shared/config.py has no class Settings")
 
+
+def settings_names(root: Path) -> set[str]:
+    """Every setting, as the upper-case name read from the environment."""
+    return {
+        stmt.target.id.upper()
+        for stmt in _settings_class(root).body
+        if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name)
+    }
+
+
+def settings_defaults(root: Path) -> dict[str, int]:
+    """Integer defaults of the Settings class in shared/config.py."""
     out: dict[str, int] = {}
-    for stmt in node.body:
+    for stmt in _settings_class(root).body:
         if not (isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value):
             continue
         value = stmt.value
@@ -270,6 +286,81 @@ def check_sessions(path: str, line: int, rows, rules) -> list[str]:
     return problems
 
 
+# ---------------------------------------------------------------------------
+#  Setting names
+# ---------------------------------------------------------------------------
+#
+# pydantic-settings silently IGNORES an environment variable it does not know.
+# A misspelt `PRIVACY_GRACE_HOURS=24` in .env changes nothing and raises no
+# error, so a wrong name in a document or in .env.example is a trap: the
+# reader follows it, nothing happens, and nobody is told. Three rules:
+#
+#   1. every setting has a line in .env.example (so it can be discovered);
+#   2. every name in .env.example is a setting (so copying it does something);
+#   3. a backticked name in the docs that looks like a setting is one.
+#
+# "Looks like a setting" = its first word is the first word of some setting
+# (JWT_, SESSION_, PRIVACY_, FILE_, ...). That keeps out shell variables,
+# document names and warehouse tables, which are not settings at all.
+
+# Records of past states quote old, wrong names on purpose.
+HISTORY = ("docs/review/", "docs/adr/", "CHANGELOG.md")
+
+# Put this at the end of a line that names a non-setting on purpose
+# (a Flask config key, a deliberately misspelt example).
+NOT_A_SETTING = "<!-- not a setting -->"
+
+_ENV_LINE = re.compile(r"^\s*#?\s*([A-Z][A-Z0-9_]*)=")
+_DOC_NAME = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?:=[^`]*)?`")
+
+
+def env_example_names(root: Path) -> dict[str, int]:
+    """name → line number, for each `NAME=` (also `# NAME=`) in .env.example."""
+    path = root / ".env.example"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise CodeError(f"cannot read {path}: {exc}") from exc
+    out: dict[str, int] = {}
+    for n, line in enumerate(text.splitlines(), 1):
+        m = _ENV_LINE.match(line)
+        if m:
+            out.setdefault(m.group(1), n)
+    return out
+
+
+def check_env_example(settings: set[str], env: dict[str, int]) -> list[str]:
+    problems = [
+        f".env.example: no line for {name} (a setting in shared/config.py)"
+        for name in sorted(settings - set(env))
+    ]
+    problems += [
+        f".env.example:{line}: {name} is not a setting in shared/config.py, so it is ignored"
+        for name, line in sorted(env.items(), key=lambda kv: kv[1])
+        if name not in settings
+    ]
+    return problems
+
+
+def check_doc_names(rel: str, text: str, settings: set[str], doc_names: frozenset[str] = frozenset()) -> list[str]:
+    """`doc_names`: stems of the repository's .md files (`SEED_REFERENCE`), which are not settings."""
+    if rel.startswith(HISTORY):
+        return []
+    prefixes = {name.split("_", 1)[0] for name in settings}
+    problems = []
+    in_fence = False
+    for n, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence or NOT_A_SETTING in line:
+            continue
+        for name in _DOC_NAME.findall(line):
+            if name.split("_", 1)[0] in prefixes and name not in settings and name not in doc_names:
+                problems.append(f"{rel}:{n}: `{name}` looks like a setting but shared/config.py has none by that name")
+    return problems
+
+
 def markdown_files(root: Path):
     for p in sorted(root.rglob("*.md")):
         if not any(part in SKIP_DIRS for part in p.relative_to(root).parts):
@@ -281,15 +372,21 @@ def main(argv: list[str]) -> int:
     try:
         lifecycle = lifecycle_rules(root)
         sessions = session_rules(root)
+        settings = settings_names(root)
+        env = env_example_names(root)
     except CodeError as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return 2
 
-    problems: list[str] = []
+    problems: list[str] = check_env_example(settings, env)
     checked = 0
-    for md in markdown_files(root):
+    md_files = list(markdown_files(root))
+    doc_names = frozenset(p.stem for p in md_files)
+    for md in md_files:
         rel = md.relative_to(root).as_posix()
-        for line, header, rows in tables(md.read_text(encoding="utf-8")):
+        text = md.read_text(encoding="utf-8")
+        problems += check_doc_names(rel, text, settings, doc_names)
+        for line, header, rows in tables(text):
             h = [c.lower() for c in header]
             if h[:4] == ["action", "from", "to", "who"]:
                 checked += 1
@@ -303,7 +400,8 @@ def main(argv: list[str]) -> int:
     if problems:
         print(f"FAIL {len(problems)} difference(s) between the documents and the code", file=sys.stderr)
         return 1
-    print(f"OK {checked} copied table(s) match shared/lifecycle.py and shared/config.py")
+    print(f"OK {checked} copied table(s) match shared/lifecycle.py and shared/config.py; "
+          f"{len(settings)} settings agree with .env.example and the docs")
     return 0
 
 

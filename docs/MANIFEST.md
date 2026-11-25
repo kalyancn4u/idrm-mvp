@@ -292,7 +292,7 @@ The Flask staff console (coordinators, admins), port 5000.
 | `smoke.sh` | Curl both apps |
 | `lint_boundaries.py` | Enforce the app ↔ dashboard and shared → app/dashboard/FastAPI/Flask import rules |
 | `lint_docs.py` | Check the docs tree: root and index sizes, every leaf reachable with a header, no broken links |
-| `lint_facts.py` | Check that copied lifecycle and token tables in the docs still match `shared/lifecycle.py` and `shared/config.py` |
+| `lint_facts.py` | Check that copied lifecycle and token tables match `shared/lifecycle.py` and `shared/config.py`, and that setting names agree across `shared/config.py`, `.env.example` and the docs |
 | `warm_cache.py` | Prime Redis from Postgres |
 
 ## `infra/` (7 files)

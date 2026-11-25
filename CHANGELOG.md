@@ -69,6 +69,12 @@ Outcome of the 2026-11 code and documentation review
   `shared/lifecycle.py` or the `shared/config.py` defaults. Other repeated
   facts were checked by hand and either kept (commands and quick-start lines
   need the value) or replaced by a link.
+- **Setting names are checked** (H-7 step 5). The same script fails when a
+  setting has no line in `.env.example`, `.env.example` names something that
+  is not a setting (it would be silently ignored), or a document names a
+  setting that does not exist. `.env.example` gains `FILE_MAX_BYTES`,
+  `IMAGE_MAX_DIMENSION` and the three `AUTO_APPROVAL_*_CACHE_TTL` settings,
+  the last four marked "declared, not read yet" (G-3, H-12).
 - **The console overview leads with the triage queue** (ADR-0016). The first
   card, "Open Incidents" (four states, but linked to `created` only), is now
   "Waiting for Approval": it counts requests in `created` and their critical

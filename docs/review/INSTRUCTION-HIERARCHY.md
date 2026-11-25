@@ -4,7 +4,7 @@
 > **Owner of:** the rules for root, index and leaf files (checked by `scripts/lint_docs.py`).  
 > **See also:** [../../CLAUDE.md](../../CLAUDE.md) · [../index/QUALITY.md](../index/QUALITY.md)
 
-## Status (updated 2026-11-25) — implemented; step 5 done for 7 of 9 facts
+## Status (updated 2026-11-25) — implemented; step 5 done for 8 of 9 facts
 
 | Part of the proposal | State |
 |---|---|
@@ -13,7 +13,7 @@
 | Pending work routed from the root | **Done** — `CLAUDE.md` points at `PENDING-TASKS.md` |
 | Three-line `Scope / Owner of / See also` header on each leaf | **Done 2026-11-25** — on all 30 leaves (accepted ADRs excepted, see below) |
 | Size, reachability and link check in `make lint` | **Done 2026-11-25** — `scripts/lint_docs.py`, also run by CI |
-| Repeated facts replaced by links | **7 of 9 done 2026-11-25** — see "Step 5, fact by fact" below. Open: endpoint list, setting names |
+| Repeated facts replaced by links | **8 of 9 done 2026-11-25** — see "Step 5, fact by fact" below. Open: endpoint list |
 
 **How the check differs from the proposal below, and why:**
 
@@ -45,7 +45,7 @@ another document that can also be wrong. `scripts/lint_facts.py` (in
 | Revocation timing | `docs/13-auth-and-sessions.md` | All copies say "immediate"; no "60 s" claim remains (the 60 s left in the docs are a cache TTL and client advice) |
 | Seed contents | `docs/SEED_REFERENCE.md` | README and `01` keep the five demo logins (a first-time reader needs them to sign in), checked equal to `scripts/seed.py` and the `SEED_PASSWORD` default; both now link to the owner for everything else and mention `ADMIN_INITIAL_PASSWORD` |
 | Endpoint list | `docs/04-api-reference.md` | **Open.** The honest owner is the running API (`/openapi.json`); comparing needs the app started — after B-2 |
-| Setting names | `.env.example` | **Open.** A check that every `UPPER_CASE` setting named in the docs exists in `.env.example` is possible without setup; not written yet |
+| Setting names | `shared/config.py` (`Settings`); `.env.example` lists them | **Checked by `lint_facts.py`**: every setting has a line in `.env.example`, every name there is a setting, and a backticked name in the docs that starts like a setting (`PRIVACY_`, `SESSION_`, …) is one. History (`docs/review/`, ADRs, CHANGELOG) is exempt; a line can opt out with `<!-- not a setting -->`. First run found 5 settings missing from `.env.example` (3 of them unused — H-12) and two Flask keys in `08` written like settings (now labelled) |
 
 The rest of this document is the original proposal, kept as the reasoning.
 

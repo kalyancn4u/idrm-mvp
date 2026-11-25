@@ -120,7 +120,7 @@ arrives with G-4.
 | Setting | Default | Allowed | Status | What it does | Raise / lower it when… |
 |---|---|---|---|---|---|
 | `FILE_LINK_TTL_SECONDS` | `300` (5 min) | 60 – 3600 | Active | Lifetime of a download link for an uploaded file. Anyone holding the link can open the file until then | **Raise** (900) only if users on very slow networks cannot finish a download. Was 3600 before ADR-0015 |
-| `FILE_MAX_BYTES` | `10485760` (10 MB) | — | Active (existing) | Largest upload accepted; the database also enforces 10 MB | Lower to save storage |
+| `FILE_MAX_BYTES` | `10485760` (10 MB) | — | Active (existing) | Largest upload accepted; the database also enforces 10 MB | Lower to save storage. **Never raise above 10 MB**: the database check `ck_files_size_max` would reject the file after the app accepted it |
 | `IMAGE_MAX_DIMENSION` | `1920` | — | **Declared, unused** | Meant for resizing photos on upload; nothing resizes yet (G-3) | — |
 
 ### 3.3 Audit — Active
@@ -177,7 +177,8 @@ counsel (G-10).
 | Settings | Where explained |
 |---|---|
 | `JWT_*`, `SESSION_*` (token lifetimes, session limits, idle timeouts per role) | [13-auth-and-sessions.md](../13-auth-and-sessions.md) |
-| `AUTO_APPROVAL_ENABLED` and the cache TTLs | [12-governance.md](../12-governance.md) and §4 below |
+| `AUTO_APPROVAL_ENABLED` | [12-governance.md](../12-governance.md) and §4 below |
+| `AUTO_APPROVAL_POLICY_CACHE_TTL` (60), `AUTO_APPROVAL_REGION_CACHE_TTL` (300), `AUTO_APPROVAL_LIST_CACHE_TTL` (30) | **Declared, unused** — the engine's cache times are fixed numbers in `shared/governance/` that equal these defaults; changing the setting does nothing yet (H-12) |
 | `DATABASE_URL*`, `REDIS_URL`, `S3_*`, `DASHBOARD_*`, `ADMIN_INITIAL_PASSWORD`, `TRUST_FORWARDED_FOR` | `.env.example` comments; [07-operations.md](../07-operations.md) |
 
 ---
@@ -271,7 +272,12 @@ FILE_LINK_TTL_SECONDS=900
 - **Reserved settings do nothing yet.** They are validated so the agreed
   numbers live in one place, ready for G-4, G-5, G-7 and G-9.
 - **`IMAGE_MAX_DIMENSION` is unused** — no image resizing exists (G-3, X10).
+- **The three `AUTO_APPROVAL_*_CACHE_TTL` settings are unused** — the cache
+  times are written into the code (H-12).
+- **Names are checked.** `scripts/lint_facts.py` (in `make lint`) fails if a
+  setting is missing from `.env.example`, if `.env.example` names something
+  that is not a setting, or if a document names a setting that does not exist.
 - **Unknown names are ignored.** A misspelt name in `.env`
-  (`PRIVACY_GRACE_HOURS=24`) is silently ignored and the default applies
+  (`PRIVACY_GRACE_HOURS=24`) is silently ignored and the default applies <!-- not a setting -->
   (open question C-8). Check the spelling against `.env.example`.
 - **Grace window uses `updated_at`** until G-4 adds `closed_at`.

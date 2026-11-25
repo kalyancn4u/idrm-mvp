@@ -9,7 +9,7 @@
 | # | Threat | Impact | Control |
 |---|---|---|---|
 | T1 | Unauthorized console access | Full compromise | Flask-Login, bcrypt (cost 12), role gate |
-| T2 | Privilege escalation | Citizen → staff | Sign-up limited to `citizen`/`provider`; `@roles_required`; `ALLOWED_DASHBOARD_ROLES`; ownership checks (`app/core/authz.py`) |
+| T2 | Privilege escalation | Citizen → staff | Sign-up limited to `citizen`/`provider`; `@roles_required`; the console's Flask key `ALLOWED_DASHBOARD_ROLES`, filled from the setting `DASHBOARD_ALLOWED_ROLES`; ownership checks (`app/core/authz.py`) | <!-- not a setting -->
 | T3 | CSRF | Attacker triggers a state change | CSRF on every dashboard POST form |
 | T4 | XSS | Session theft | Jinja2 autoescape; strict CSP |
 | T5 | SQL injection | DB compromise | SQLAlchemy parameter binding |
@@ -35,9 +35,9 @@ bcrypt, cost 12. Hashes start with `$2b$12$`.
 
 | Setting | Value |
 |---|---|
-| Cookie | `SESSION_COOKIE_HTTPONLY=True` |
+| Cookie | `SESSION_COOKIE_HTTPONLY=True` (Flask key, fixed in `dashboard/__init__.py`) | <!-- not a setting -->
 | SameSite | `Lax` |
-| Secure | True in prod |
+| Secure | True in prod (setting `DASHBOARD_SESSION_COOKIE_SECURE`) |
 | Session lifetime | 8 hours |
 | `session_protection` | `strong` |
 
