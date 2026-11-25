@@ -40,15 +40,18 @@ same "invalid credentials" error is returned regardless of reason.
 
 ## Overview
 
-Five KPI cards:
-- Open incidents + critical count
-- Auto-approved requests
-- Available personnel + units
-- Organizations (verified count)
-- Verified incidents
+Five KPI cards (`dashboard/templates/main/dashboard.html`); each is a link:
+- Open incidents + critical count → the incident list, `created` filter.
+  The card counts four states (created, approved, accepted, in progress) but
+  the link shows only `created` — the requests waiting for approval — so the
+  list is usually shorter than the number (PENDING-TASKS H-10)
+- Auto-approved requests → policy decisions
+- Available personnel + units → personnel status
+- Organizations (verified count) → organization list
+- Verified incidents → the incident list, `verified` filter
 
-Plus: incidents by status, incidents by service, personnel status, unit
-status, and recent activity.
+Plus four lists of counts (not charts): incidents by status, incidents by
+service, personnel status, unit status; and recent activity.
 
 ## Dispatch Console — the crown jewel
 

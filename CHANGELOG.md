@@ -80,6 +80,9 @@ Outcome of the 2026-11 code and documentation review
 
 ### Fixed
 
+- The tutorial now says the console overview has five KPI cards (it said
+  four) and four lists of counts (it said "several charts"); the dashboard
+  guide names each card's link.
 - `docs/MANIFEST.md` lists every tracked file (272, was 227) with correct
   folder counts, drops five entries for files that do not exist, and checks
   completeness with `git ls-files | wc -l`.
