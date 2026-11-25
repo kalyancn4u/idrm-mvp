@@ -4,7 +4,7 @@
 > **Owner of:** the rules for root, index and leaf files (checked by `scripts/lint_docs.py`).  
 > **See also:** [../../CLAUDE.md](../../CLAUDE.md) · [../index/QUALITY.md](../index/QUALITY.md)
 
-## Status (updated 2026-11-25) — implemented except step 5
+## Status (updated 2026-11-25) — implemented; step 5 done for 7 of 9 facts
 
 | Part of the proposal | State |
 |---|---|
@@ -13,7 +13,7 @@
 | Pending work routed from the root | **Done** — `CLAUDE.md` points at `PENDING-TASKS.md` |
 | Three-line `Scope / Owner of / See also` header on each leaf | **Done 2026-11-25** — on all 30 leaves (accepted ADRs excepted, see below) |
 | Size, reachability and link check in `make lint` | **Done 2026-11-25** — `scripts/lint_docs.py`, also run by CI |
-| Repeated facts replaced by links | Partly — the facts were corrected in every copy during the review, but the copies still exist |
+| Repeated facts replaced by links | **7 of 9 done 2026-11-25** — see "Step 5, fact by fact" below. Open: endpoint list, setting names |
 
 **How the check differs from the proposal below, and why:**
 
@@ -24,6 +24,28 @@
 | Every leaf reachable from **exactly** one branch | From **at least** one; two parents are printed as a note | The data and privacy designs genuinely belong to both the data and the security topic. Forcing one parent would hide them from half their readers |
 | Header on every leaf | Every leaf except accepted ADRs (`docs/adr/0*.md`) and the documents for people (README, TUTORIAL, DEMO_SCRIPT, DIAGRAMS, MANIFEST) | Accepted ADRs are never edited (CLAUDE.md); documents for people are read only on request |
 | No broken links | Every relative link must point at an existing file; links inside code blocks and inline code are ignored; `#anchors` are not checked | Anchors depend on how each viewer turns headings into ids; checking them would give false alarms |
+
+### Step 5, fact by fact (2026-11-25)
+
+Two lessons changed the plan. First, **a copy is not always a mistake**: a
+`curl` line in a checklist or a SQL check expecting `$2b$12$` must contain the
+value, and a one-page cheat sheet that says "see elsewhere" is no longer a
+cheat sheet. Second, **for some facts the owner is the code, not a
+document** — so the right fix is a check against the code, not a link to
+another document that can also be wrong. `scripts/lint_facts.py` (in
+`make lint` and CI) does that for the two tables that are deliberately copied.
+
+| Fact | Owner now | What happened to the copies |
+|---|---|---|
+| Console login URL | `docs/05-dashboard-guide.md` (it claimed ownership but never wrote the URL — now it does, with the code it comes from) | Every copy (README, `01`, QUICK_REFERENCE, TUTORIAL, DEMO_SCRIPT, DIAGRAMS, MANIFEST, DEPLOYMENT_CHECKLIST, SECURITY_VERIFICATION, `bootstrap.sh`, `run_all.sh`) checked equal to the code (`/dashboard/auth/login`). Kept: each is a quick-start line or a command a person runs |
+| Role list and TTL table | `shared/config.py` defaults; explained in `docs/13` | Copy in `QUICK_REFERENCE` kept and **checked by `lint_facts.py`**; README already summarises and links |
+| Lifecycle | `shared/lifecycle.py` | `QUICK_REFERENCE` table **checked by `lint_facts.py`** — the check's first run found it missing the `assign` action (fixed). README and DIAGRAMS now point at that table; DIAGRAMS also lacked `assign` from `created` (fixed). The proposal named `docs/04` as owner, but `04` has no lifecycle table |
+| Table and migration counts | `docs/03-data-model.md` | README, DIAGRAMS, QUICK_REFERENCE, TUTORIAL all say 60, as `03` does. `sql/02_tables.sql` had its own group counts (sum 54, two groups wrong) — replaced by a pointer to `03` |
+| Password hashing | `docs/08-security.md` | All copies say bcrypt cost 12, matching `BCRYPT_ROUNDS = 12` in `shared/security.py`. Kept: in `07` and `SECURITY_VERIFICATION` they are the expected output of a check |
+| Revocation timing | `docs/13-auth-and-sessions.md` | All copies say "immediate"; no "60 s" claim remains (the 60 s left in the docs are a cache TTL and client advice) |
+| Seed contents | `docs/SEED_REFERENCE.md` | README and `01` keep the five demo logins (a first-time reader needs them to sign in), checked equal to `scripts/seed.py` and the `SEED_PASSWORD` default; both now link to the owner for everything else and mention `ADMIN_INITIAL_PASSWORD` |
+| Endpoint list | `docs/04-api-reference.md` | **Open.** The honest owner is the running API (`/openapi.json`); comparing needs the app started — after B-2 |
+| Setting names | `.env.example` | **Open.** A check that every `UPPER_CASE` setting named in the docs exists in `.env.example` is possible without setup; not written yet |
 
 The rest of this document is the original proposal, kept as the reasoning.
 

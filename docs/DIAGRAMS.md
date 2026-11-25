@@ -205,7 +205,15 @@ any code review, any Markdown viewer.
 
       From {created, approved, accepted, in_progress}:
               cancel  →  cancelled  (terminal)
+
+      From {created, approved}:
+              assign  →  accepted   (coordinator, admin — a rule
+                                     with no endpoint yet; ADR-0014)
 ```
+
+The rules are in `shared/lifecycle.py`. The table in
+[QUICK_REFERENCE.md](QUICK_REFERENCE.md#incident-lifecycle-the-state-machine)
+is checked against them by `make lint`; this drawing is not, so trust the table.
 
 ---
 

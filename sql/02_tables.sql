@@ -3,13 +3,8 @@
 --  PLACEHOLDER — this file does not contain the schema yet.
 --  The authoritative schema is the Alembic migrations (ADR-0001).
 --
---  Sections:
---    A. Identity (11 tables)
---    B. Reference (8 tables)
---    C. Transactional (13 tables)
---    D. Operations (11 tables)
---    E. Governance + Evidence (10 tables)
---    F. Audit (1 table)
+--  Table groups and counts: docs/03-data-model.md (the one place they are
+--  written; this header used to repeat them, and its copy had drifted).
 --
 --  See alembic/versions/0001_baseline.py and 0002_resgrid.py for the
 --  authoritative migration source.

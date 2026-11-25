@@ -4,7 +4,7 @@ A complete file-by-file inventory of the IDRM MVP repository: every file git
 tracks, grouped by folder, with one line on what it is for. Use it to find a
 file, or to check that a copy of the repository is complete.
 
-**Total tracked files: 275** (`git ls-files | wc -l`, 2026-11-25).
+**Total tracked files: 276** (`git ls-files | wc -l`, 2026-11-25).
 
 Not listed, because git does not track them: `.env`, `keys/`, `backups/`,
 `.venv/`, `__pycache__/`, `.vscode/` (editor settings stay on each machine;
@@ -280,7 +280,7 @@ The Flask staff console (coordinators, admins), port 5000.
 | `js/app.js` | Client behaviour |
 | `img/logo.svg` | Logo |
 
-## `scripts/` (9 files)
+## `scripts/` (10 files)
 
 | File | Purpose |
 |---|---|
@@ -292,6 +292,7 @@ The Flask staff console (coordinators, admins), port 5000.
 | `smoke.sh` | Curl both apps |
 | `lint_boundaries.py` | Enforce the app ↔ dashboard and shared → app/dashboard/FastAPI/Flask import rules |
 | `lint_docs.py` | Check the docs tree: root and index sizes, every leaf reachable with a header, no broken links |
+| `lint_facts.py` | Check that copied lifecycle and token tables in the docs still match `shared/lifecycle.py` and `shared/config.py` |
 | `warm_cache.py` | Prime Redis from Postgres |
 
 ## `infra/` (7 files)
@@ -461,7 +462,7 @@ Where to start: `CLAUDE.md` at the root sends you to one file in
 Check that a copy of the repository is complete:
 
 ```bash
-# Count tracked files (should print 275 for this version)
+# Count tracked files (should print 276 for this version)
 git ls-files | wc -l
 
 # Verify the build

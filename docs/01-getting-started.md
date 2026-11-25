@@ -52,6 +52,9 @@ make run
 | API | Citizen | `priya.citizen@example.com` | `IDRMseed#2026` |
 | API | Provider | `smilinghearts@ngo.example` | `IDRMseed#2026` |
 
+The admin password is `ADMIN_INITIAL_PASSWORD` if you set one. Every other
+seeded user, region and policy: [SEED_REFERENCE.md](SEED_REFERENCE.md).
+
 ## 6. What to look at
 
 ### As Admin

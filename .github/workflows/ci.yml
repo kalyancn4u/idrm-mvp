@@ -3,7 +3,7 @@
 #  Runs on every push and every pull request.
 #
 #  Three jobs:
-#    - lint    ruff + the dashboard→app boundary check
+#    - lint    ruff, import boundaries, the docs tree, docs-vs-code facts
 #    - test    pytest against a real PostGIS instance, with and without Redis
 #    - docker  proves the image builds
 # =============================================================================
@@ -52,6 +52,9 @@ jobs:
 
       - name: Docs check (sizes, reachability, leaf headers, broken links)
         run: python scripts/lint_docs.py
+
+      - name: Facts check (copied lifecycle and token tables match the code)
+        run: python scripts/lint_facts.py
 
   # ---------------------------------------------------------------------------
   #  Test — against a real PostGIS instance

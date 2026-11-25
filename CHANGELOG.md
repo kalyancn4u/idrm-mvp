@@ -63,6 +63,12 @@ Outcome of the 2026-11 code and documentation review
   `make lint` and CI) fails when `CLAUDE.md` or an index file grows past its
   size limit, a leaf cannot be reached from an index, a header is missing,
   or a relative link points at a file that does not exist.
+- **Copied tables are checked against the code** (H-7 step 5).
+  `scripts/lint_facts.py` (in `make lint` and CI) fails when any markdown
+  table of incident transitions or of token lifetimes stops matching
+  `shared/lifecycle.py` or the `shared/config.py` defaults. Other repeated
+  facts were checked by hand and either kept (commands and quick-start lines
+  need the value) or replaced by a link.
 - **The console overview leads with the triage queue** (ADR-0016). The first
   card, "Open Incidents" (four states, but linked to `created` only), is now
   "Waiting for Approval": it counts requests in `created` and their critical
@@ -89,6 +95,12 @@ Outcome of the 2026-11 code and documentation review
 
 ### Fixed
 
+- The lifecycle table in `docs/QUICK_REFERENCE.md` was missing the `assign`
+  action and `docs/DIAGRAMS.md` showed it only from `approved`; both now match
+  `shared/lifecycle.py` (no endpoint performs `assign` yet — H-11).
+- `sql/02_tables.sql` listed table-group counts that added up to 54 (the
+  schema has 60); it now points at `docs/03-data-model.md`.
+- `docs/05-dashboard-guide.md` now states the console sign-in URL it owns.
 - The tutorial now says the console overview has five KPI cards (it said
   four) and four lists of counts (it said "several charts"); the dashboard
   guide names each card's link.

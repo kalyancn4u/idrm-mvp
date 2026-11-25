@@ -18,3 +18,4 @@ section named. Back to [CLAUDE.md](../../CLAUDE.md).
 |---|---|
 | Pending work and its status | review/PENDING-TASKS.md |
 | What was found and fixed | review/DISCREPANCY-REGISTER.md |
+| Which copied facts are checked against the code | review/INSTRUCTION-HIERARCHY.md |

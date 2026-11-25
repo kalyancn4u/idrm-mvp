@@ -108,10 +108,16 @@ created ──approve──▶ approved ──accept──▶ accepted ──sta
 | `approve` | created | approved | coordinator, admin |
 | `reject` | created, approved | rejected | coordinator, admin |
 | `accept` | approved | accepted | provider |
+| `assign` | created, approved | accepted | coordinator, admin |
 | `start` | accepted | in_progress | provider |
 | `complete` | in_progress | completed | provider |
 | `verify` | completed | verified | citizen |
 | `cancel` | created, approved, accepted, in_progress | cancelled | citizen, coordinator, admin |
+
+The rules live in `shared/lifecycle.py`; `scripts/lint_facts.py` (run by
+`make lint`) fails if this table stops matching them. `assign` is a rule
+with no endpoint or console button yet ([ADR-0014](adr/0014-approval-first.md)
+allows it from `created`, because the coordinator is the one deciding).
 
 ---
 
@@ -159,6 +165,9 @@ Authorization: Bearer <access_token>
 | provider | 120 min ± 20 | 180 days ± 7 | 3 | 90 days |
 | coordinator | 60 min ± 10 | 90 days ± 5 | 3 | 12 hours |
 | admin | 30 min ± 5 | 30 days ± 3 | 2 | 4 hours |
+
+Defaults from `shared/config.py`, changeable in `.env`; checked by
+`scripts/lint_facts.py`. Why they are this long: [13-auth-and-sessions.md](13-auth-and-sessions.md).
 
 ---
 

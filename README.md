@@ -51,6 +51,10 @@ make run
 | API | Citizen | `priya.citizen@example.com` | `IDRMseed#2026` |
 | API | Provider | `smilinghearts@ngo.example` | `IDRMseed#2026` |
 
+Development data only. The admin password is `ADMIN_INITIAL_PASSWORD` if you
+set one. Every seeded user, region and policy:
+[docs/SEED_REFERENCE.md](docs/SEED_REFERENCE.md).
+
 ---
 
 ## The two apps, visually differentiated
@@ -133,6 +137,11 @@ created ──approve──▶ approved ──accept──▶ accepted ──sta
 
 The dashboard drives `approve` / `reject` from the Dispatch Console. The
 other transitions are provider / citizen actions through the public API.
+One more rule, `assign` (a coordinator hands a `created` or `approved`
+request straight to `accepted`), exists in `shared/lifecycle.py` but no
+endpoint uses it yet. Who may do what: the table in
+[docs/QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md#incident-lifecycle-the-state-machine),
+which `make lint` checks against the code.
 
 **Approval comes first.** A provider can `accept` a request only once it is
 `approved`. By default that means a coordinator approves it. During a

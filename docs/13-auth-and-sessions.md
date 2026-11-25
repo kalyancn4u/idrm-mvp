@@ -49,6 +49,10 @@
 | coordinator | 60 min ± 10 | 90 days ± 5 | 3 | 12 hours |
 | admin | 30 min ± 5 | 30 days ± 3 | 2 | 4 hours |
 
+These are the defaults in `shared/config.py`; each can be changed in `.env`
+(names in `.env.example`). `scripts/lint_facts.py` fails `make lint` if this
+table, or a copy of it, stops matching the code.
+
 ## Why generous TTLs
 
 Because **revocation is immediate** — the session + token version check

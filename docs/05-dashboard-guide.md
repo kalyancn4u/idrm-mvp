@@ -8,6 +8,11 @@ The staff console for coordinators and administrators.
 
 ## Who can log in
 
+The sign-in page is **`/dashboard/auth/login`** — on a development machine
+`http://127.0.0.1:5000/dashboard/auth/login` (port from `DASH_PORT`). The
+path comes from `dashboard/__init__.py` (blueprint prefix `/dashboard/auth`)
+and `dashboard/blueprints/auth.py` (route `/login`).
+
 Only `coordinator` and `admin`. A citizen or provider cannot sign in — the
 same "invalid credentials" error is returned regardless of reason.
 
