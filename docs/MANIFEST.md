@@ -275,7 +275,7 @@ files.
 | `bootstrap.sh` | One-shot bring-up |
 | `run_all.sh` | Both apps in one shell |
 | `smoke.sh` | Curl both apps |
-| `lint_boundaries.py` | Enforce dashboard→app rule |
+| `lint_boundaries.py` | Enforce the app ↔ dashboard and shared → app/dashboard/FastAPI/Flask import rules |
 | `warm_cache.py` | Prime Redis from Postgres |
 
 ## `tests/` (17 files)

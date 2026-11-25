@@ -157,7 +157,7 @@ test-cov:
 
 lint:
 	@$(VENV_BIN)/ruff check app dashboard shared tests scripts
-	@$(PY) -c "import pathlib,sys; bad=[f for f in pathlib.Path('dashboard').rglob('*.py') if 'from app' in f.read_text()]; print('✔ no dashboard→app imports' if not bad else f'✖ {bad}'); sys.exit(1 if bad else 0)"
+	@$(PY) scripts/lint_boundaries.py
 
 fmt:
 	@$(VENV_BIN)/ruff check --fix app dashboard shared tests scripts

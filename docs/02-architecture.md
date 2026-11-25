@@ -32,7 +32,7 @@ Both apps:
 | Different renderers | JSON vs. HTML |
 | Different ports | 8000 vs. 5000 |
 | Same data | Identical ORM models |
-| Boundary | `make lint` rejects `dashboard → app` imports |
+| Boundary | `make lint` and CI run `scripts/lint_boundaries.py`: app and dashboard may not import each other; shared may not import either, nor FastAPI or Flask |
 
 ## Key ADRs
 

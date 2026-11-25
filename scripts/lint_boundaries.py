@@ -1,63 +1,132 @@
 """
-Enforce the dashboard→app import boundary.
+Enforce the import boundaries between app/, dashboard/ and shared/.
+
+The rules (CLAUDE.md rule 1, ADR-0005, ADR-0009):
+
+    app/        may not import  dashboard
+    dashboard/  may not import  app
+    shared/     may not import  app, dashboard, fastapi, starlette, flask, flask_*
+
+Why: the API and the console are peers that share one database. If one
+imports the other, they can no longer be deployed, tested or changed on their
+own. `shared/` is used by both, so it must not depend on either app or on
+either web framework (FastAPI is built on Starlette; Flask extensions are
+named flask_*).
+
+How: each .py file is PARSED (Python's `ast` module), not searched as text.
+So an import written over several lines, inside a function, or as
+`import app.core as c` is found, while the same words in a comment or a
+string are not.
+
+Not caught (on purpose, to keep this simple): `importlib.import_module("app")`
+and other dynamic imports. Relative imports (`from .x import y`) stay inside
+their own package and cannot cross a boundary.
 
 Run:
-    python scripts/lint_boundaries.py
+    python scripts/lint_boundaries.py            # check the repository
+    python scripts/lint_boundaries.py ROOT       # check another tree (tests)
 
-Exits 0 if no violations, 1 otherwise.
+Exits 0 if there are no violations, 1 otherwise, 2 if a file cannot be parsed.
+Standard library only, so it runs before any dependency is installed.
 
 Invoked by:
     - `make lint`
-    - the pre-commit hook `.pre-commit-config.yaml`
     - the CI workflow `.github/workflows/ci.yml`
 """
 
 from __future__ import annotations
 
+import ast
 import pathlib
-import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+DEFAULT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-FORBIDDEN_PATTERNS = [
-    re.compile(r"^\s*from\s+app(\.|\s+import)"),
-    re.compile(r"^\s*import\s+app(\.|\s|$)"),
-]
+# package directory -> top-level module names it must not import
+RULES: dict[str, tuple[str, ...]] = {
+    "app": ("dashboard",),
+    "dashboard": ("app",),
+    "shared": ("app", "dashboard", "fastapi", "starlette", "flask"),
+}
 
-# Files to check.  Only .py files inside dashboard/.
-TARGET_DIR = ROOT / "dashboard"
+# A forbidden name also forbids names that start with it plus "_", so that
+# "flask" covers flask_login and flask_wtf. (No other rule name has
+# legitimate packages with that prefix.)
+PREFIX_FAMILIES = ("flask",)
 
+SKIP_DIRS = {"__pycache__", ".venv", "venv", "node_modules"}
 
-def find_violations() -> list[tuple[pathlib.Path, int, str]]:
-    violations: list[tuple[pathlib.Path, int, str]] = []
-    for path in TARGET_DIR.rglob("*.py"):
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            for pat in FORBIDDEN_PATTERNS:
-                if pat.match(line):
-                    violations.append((path.relative_to(ROOT), lineno, line.strip()))
-    return violations
+Violation = tuple[pathlib.Path, int, str, str]   # path, line, imported name, package
 
 
-def main() -> int:
-    violations = find_violations()
+def _top_level(module: str) -> str:
+    return module.split(".", 1)[0]
+
+
+def _is_forbidden(module: str, forbidden: tuple[str, ...]) -> bool:
+    top = _top_level(module)
+    if top in forbidden:
+        return True
+    return any(top.startswith(f + "_") for f in PREFIX_FAMILIES if f in forbidden)
+
+
+def imported_modules(tree: ast.AST) -> list[tuple[int, str]]:
+    """Every absolute module name imported anywhere in the file, with its line."""
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found.extend((node.lineno, alias.name) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            found.append((node.lineno, node.module))
+    return found
+
+
+def find_violations(root: pathlib.Path) -> tuple[list[Violation], list[str]]:
+    violations: list[Violation] = []
+    errors: list[str] = []
+    for package, forbidden in RULES.items():
+        base = root / package
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*.py")):
+            if SKIP_DIRS.intersection(path.parts):
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except (SyntaxError, UnicodeDecodeError) as exc:
+                errors.append(f"{path.relative_to(root)}: cannot parse ({exc})")
+                continue
+            for lineno, module in imported_modules(tree):
+                if _is_forbidden(module, forbidden):
+                    violations.append((path.relative_to(root), lineno, module, package))
+    return violations, errors
+
+
+def main(argv: list[str]) -> int:
+    root = pathlib.Path(argv[1]).resolve() if len(argv) > 1 else DEFAULT_ROOT
+    violations, errors = find_violations(root)
+
+    for err in errors:
+        print(f"! {err}")
+    if errors:
+        return 2
 
     if not violations:
-        print("✔ no dashboard→app imports")
+        print("OK  import boundaries: app -/-> dashboard, dashboard -/-> app, "
+              "shared -/-> app, dashboard, fastapi, starlette, flask")
         return 0
 
-    print("✖ dashboard/ imports from app/:")
+    print("FAIL  import boundary violations:")
     print()
-    for path, lineno, line in violations:
-        print(f"  {path}:{lineno}")
-        print(f"      {line}")
+    for path, lineno, module, package in violations:
+        print(f"  {path}:{lineno}  {package}/ imports '{module}'")
     print()
-    print("The dashboard and the API are peers.  Neither may import the other.")
-    print("Move the code you need into shared/ instead.")
-    print()
-    print("See docs/adr/0009-shared-code.md for the reasoning.")
+    print("app/ and dashboard/ are peers: neither may import the other.")
+    print("shared/ is used by both: it may not import either app, or FastAPI/Flask.")
+    print("Move the code both need into shared/, without the framework parts.")
+    print("Reasoning: docs/adr/0009-shared-code.md and CLAUDE.md rule 1.")
     return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))

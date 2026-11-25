@@ -47,7 +47,7 @@ jobs:
       - name: ruff check
         run: ruff check app dashboard shared tests scripts
 
-      - name: Boundary check (dashboard → app is forbidden)
+      - name: Boundary check (app ↔ dashboard; shared → app, dashboard, FastAPI, Flask)
         run: python scripts/lint_boundaries.py
 
   # ---------------------------------------------------------------------------

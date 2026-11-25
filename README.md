@@ -221,7 +221,7 @@ make test-api          FastAPI tests
 make test-dashboard    Flask tests
 make test-no-redis     Prove it works without Redis
 make test-cov          Coverage report
-make lint              ruff + dashboard→app boundary check
+make lint              ruff + import-boundary check (app, dashboard, shared)
 make smoke             curl BOTH apps
 
 make clean             Remove caches

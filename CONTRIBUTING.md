@@ -41,11 +41,16 @@ docs/        Documentation
 
 | Rule | Enforced by |
 |---|---|
-| `app/**` may import from `shared/**` | `make lint` |
-| `dashboard/**` may import from `shared/**` | `make lint` |
-| `dashboard/**` must NOT import from `app/**` | `make lint` (fails CI) |
-| `app/**` must NOT import from `dashboard/**` | convention (not checked yet) |
-| `shared/**` must NOT import from `app/**`, `dashboard/**`, FastAPI or Flask | convention (not checked yet) |
+| `app/**` may import from `shared/**` | allowed |
+| `dashboard/**` may import from `shared/**` | allowed |
+| `dashboard/**` must NOT import from `app/**` | `scripts/lint_boundaries.py` (fails `make lint` and CI) |
+| `app/**` must NOT import from `dashboard/**` | `scripts/lint_boundaries.py` (fails `make lint` and CI) |
+| `shared/**` must NOT import from `app/**`, `dashboard/**`, FastAPI (or Starlette) or Flask (or any `flask_*`) | `scripts/lint_boundaries.py` (fails `make lint` and CI) |
+
+The checker parses each file, so it finds imports written over several lines
+or inside functions and ignores the same words in comments and strings. It
+does not see dynamic imports (`importlib.import_module("app")`) — do not use
+them to get around the rule.
 
 If you find yourself wanting to break the rule, the correct answer is almost
 always: *move the code to `shared/`*.

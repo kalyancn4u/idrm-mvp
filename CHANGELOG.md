@@ -58,6 +58,11 @@ Outcome of the 2026-11 code and documentation review
 
 ### Changed
 
+- **The import-boundary check covers all three rules**: `app` and
+  `dashboard` may not import each other, and `shared` may not import either,
+  nor FastAPI/Starlette or Flask/`flask_*`. `scripts/lint_boundaries.py`
+  parses each file instead of searching text, and `make lint` now runs it
+  (it used to run a separate one-line search for `from app` only).
 - **Approval comes first** (ADR-0014): a provider can claim only an approved
   request; a coordinator can switch auto-approval on for named regions and a
   fixed period
