@@ -1,5 +1,9 @@
 # ADR Errata — where an accepted ADR and the code differ
 
+> **Scope:** where an accepted ADR and the code differ.  
+> **Owner of:** corrections of fact to accepted ADRs.  
+> **See also:** [README.md](README.md) · [../02-architecture.md](../02-architecture.md)
+
 An accepted ADR is not edited (see [README](README.md)). When the code turns
 out to differ from what an ADR says, the difference is recorded here instead,
 so a reader of the ADR is not misled. A change of *decision* still needs a new

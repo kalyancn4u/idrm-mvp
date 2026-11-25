@@ -1,5 +1,9 @@
 # Contributing to IDRM
 
+> **Scope:** repository layout, setup, conventions, the boundary rule and the pull-request checklist.  
+> **Owner of:** the contribution workflow and the import-boundary rule table.  
+> **See also:** [docs/09-testing.md](docs/09-testing.md) · [docs/02-architecture.md](docs/02-architecture.md) · [CLAUDE.md](CLAUDE.md)
+
 Thank you for considering a contribution. This guide explains how the
 repository is organised, how to set up a development environment, and the
 conventions that keep the codebase coherent.

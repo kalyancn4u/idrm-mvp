@@ -50,6 +50,9 @@ jobs:
       - name: Boundary check (app ↔ dashboard; shared → app, dashboard, FastAPI, Flask)
         run: python scripts/lint_boundaries.py
 
+      - name: Docs check (sizes, reachability, leaf headers, broken links)
+        run: python scripts/lint_docs.py
+
   # ---------------------------------------------------------------------------
   #  Test — against a real PostGIS instance
   # ---------------------------------------------------------------------------

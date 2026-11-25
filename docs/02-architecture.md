@@ -1,5 +1,9 @@
 # Architecture
 
+> **Scope:** how the two apps, the shared code, the database and the services fit together.  
+> **Owner of:** the component picture and the import-boundary rules (enforced by `scripts/lint_boundaries.py`).  
+> **See also:** [adr/README.md](adr/README.md) · [03-data-model.md](03-data-model.md) · [11-glossary.md](11-glossary.md)
+
 ## The two-app monolith
 
 ```

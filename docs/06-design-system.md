@@ -1,5 +1,9 @@
 # Design System — Two Canvases, One Vocabulary
 
+> **Scope:** the visual vocabulary shared by the API site and the staff console.  
+> **Owner of:** colour, type and component conventions.  
+> **See also:** [05-dashboard-guide.md](05-dashboard-guide.md) · [02-architecture.md](02-architecture.md)
+
 The platform has **one design system** and **two visual identities**.
 Everything below the page background is identical between the FastAPI public
 site and the Flask staff console. Only the canvas changes.

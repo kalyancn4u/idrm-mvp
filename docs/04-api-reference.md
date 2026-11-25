@@ -1,5 +1,9 @@
 # API Reference
 
+> **Scope:** every API endpoint, who may call it, and who sees which fields.  
+> **Owner of:** the endpoint list (the live list is `/docs` on a running API).  
+> **See also:** [13-auth-and-sessions.md](13-auth-and-sessions.md) · [CLIENT_EXAMPLES.md](CLIENT_EXAMPLES.md) · [design/DATA-CONFIGURATION.md](design/DATA-CONFIGURATION.md)
+
 Base path: `/api/v1`. Every endpoint needs a bearer token unless its **Auth**
 column says `none` or `anon`. The open ones are: `/health`, `/info`,
 `POST /incidents` (guest requests), `/incidents/track/{token}`,

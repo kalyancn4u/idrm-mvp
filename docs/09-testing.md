@@ -1,5 +1,9 @@
 # Testing Guide
 
+> **Scope:** running and writing tests, and the separate test database.  
+> **Owner of:** how tests are run and marked (`pg`, a database named `*_test`).  
+> **See also:** [../CONTRIBUTING.md](../CONTRIBUTING.md) · [SECURITY_VERIFICATION.md](SECURITY_VERIFICATION.md) · [review/PENDING-TASKS.md](review/PENDING-TASKS.md)
+
 ## Running tests
 
 ```bash

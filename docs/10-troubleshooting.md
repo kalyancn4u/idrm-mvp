@@ -1,5 +1,9 @@
 # Troubleshooting & FAQ
 
+> **Scope:** common failures and how to fix them.  
+> **Owner of:** the list of known symptoms and their fixes.  
+> **See also:** [01-getting-started.md](01-getting-started.md) · [07-operations.md](07-operations.md)
+
 ## Installation
 
 ### `make infra-up` fails — "Cannot connect to the Docker daemon"

@@ -1,15 +1,29 @@
 # Instruction Hierarchy — a B+ tree for the docs
 
-## Status (2026-11-15) — partly implemented
+> **Scope:** how the instruction files are organised: CLAUDE.md → index file → leaf.  
+> **Owner of:** the rules for root, index and leaf files (checked by `scripts/lint_docs.py`).  
+> **See also:** [../../CLAUDE.md](../../CLAUDE.md) · [../index/QUALITY.md](../index/QUALITY.md)
+
+## Status (updated 2026-11-25) — implemented except step 5
 
 | Part of the proposal | State |
 |---|---|
-| Root file `CLAUDE.md` | **Exists.** About 800 tokens, not the 400 proposed below: it also carries ten standing rules and five working habits, because a new machine has no other memory of them |
-| Seven branch files in `docs/index/` | **Exist.** 170 to 300 tokens each, pointers only, each with a "one place each fact is written" table |
+| Root file `CLAUDE.md` | **Exists.** About 840 tokens, not the 400 proposed below: it also carries ten standing rules and five working habits, because a new machine has no other memory of them |
+| Seven branch files in `docs/index/` | **Exist.** 170 to 350 tokens each, pointers only, each with a "one place each fact is written" table |
 | Pending work routed from the root | **Done** — `CLAUDE.md` points at `PENDING-TASKS.md` |
-| Three-line `Scope / Owner of / See also` header on each leaf | Not done |
-| Size and reachability check in `make lint` | Not done |
+| Three-line `Scope / Owner of / See also` header on each leaf | **Done 2026-11-25** — on all 30 leaves (accepted ADRs excepted, see below) |
+| Size, reachability and link check in `make lint` | **Done 2026-11-25** — `scripts/lint_docs.py`, also run by CI |
 | Repeated facts replaced by links | Partly — the facts were corrected in every copy during the review, but the copies still exist |
+
+**How the check differs from the proposal below, and why:**
+
+| Proposal | As built | Reason |
+|---|---|---|
+| Root ≤ 400 tokens | Root ≤ 900 | The decision above: the root also holds the standing rules |
+| Each branch ≤ 250 | Each branch ≤ 350 | Room for one line per document as the data-design documents were added; `DATA.md` was trimmed to fit rather than given an exception |
+| Every leaf reachable from **exactly** one branch | From **at least** one; two parents are printed as a note | The data and privacy designs genuinely belong to both the data and the security topic. Forcing one parent would hide them from half their readers |
+| Header on every leaf | Every leaf except accepted ADRs (`docs/adr/0*.md`) and the documents for people (README, TUTORIAL, DEMO_SCRIPT, DIAGRAMS, MANIFEST) | Accepted ADRs are never edited (CLAUDE.md); documents for people are read only on request |
+| No broken links | Every relative link must point at an existing file; links inside code blocks and inline code are ignored; `#anchors` are not checked | Anchors depend on how each viewer turns headings into ids; checking them would give false alarms |
 
 The rest of this document is the original proposal, kept as the reasoning.
 

@@ -1,5 +1,9 @@
 # Security Verification
 
+> **Scope:** copy-paste checks that prove each security control.  
+> **Owner of:** the verification commands and their expected results.  
+> **See also:** [08-security.md](08-security.md) · [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)
+
 For each control IDRM claims, this document says how to *prove it*, not
 just assert it. Run these in front of an auditor.
 

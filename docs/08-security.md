@@ -1,5 +1,9 @@
 # Security & IAM
 
+> **Scope:** threats, controls, permission tables, and the limits of audit immutability.  
+> **Owner of:** password hashing and the permission matrices.  
+> **See also:** [SECURITY_VERIFICATION.md](SECURITY_VERIFICATION.md) · [13-auth-and-sessions.md](13-auth-and-sessions.md) · [design/PRIVACY-FIRST-DATA-DESIGN.md](design/PRIVACY-FIRST-DATA-DESIGN.md)
+
 ## Threat model
 
 | # | Threat | Impact | Control |

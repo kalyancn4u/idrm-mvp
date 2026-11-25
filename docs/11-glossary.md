@@ -1,5 +1,9 @@
 # Glossary
 
+> **Scope:** the words used across IDRM.  
+> **Owner of:** term definitions.  
+> **See also:** [02-architecture.md](02-architecture.md) · [design/DATA-DESIGN.md](design/DATA-DESIGN.md) (§2, data words)
+
 ## Identity & access
 
 **Account** — a concrete login on a specific system. One identity may own

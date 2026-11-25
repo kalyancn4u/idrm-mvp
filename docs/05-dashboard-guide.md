@@ -1,5 +1,9 @@
 # Dashboard Guide
 
+> **Scope:** using the staff console, page by page.  
+> **Owner of:** the console login URL and its pages.  
+> **See also:** [06-design-system.md](06-design-system.md) · [12-governance.md](12-governance.md) · [adr/0016-overview-card-is-the-triage-queue.md](adr/0016-overview-card-is-the-triage-queue.md)
+
 The staff console for coordinators and administrators.
 
 ## Who can log in

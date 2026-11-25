@@ -1,5 +1,9 @@
 # Deployment Checklist
 
+> **Scope:** what must be true before going live.  
+> **Owner of:** the go-live checklist.  
+> **See also:** [07-operations.md](07-operations.md) · [infra/INFRASTRUCTURE-MASTER-PLAN.md](infra/INFRASTRUCTURE-MASTER-PLAN.md) · [SECURITY_VERIFICATION.md](SECURITY_VERIFICATION.md)
+
 A production readiness checklist. Every box must be checked before going
 live. Print this, tick the boxes, keep it.
 

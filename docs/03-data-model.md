@@ -1,5 +1,9 @@
 # Data Model
 
+> **Scope:** the database tables by group, and the enums.  
+> **Owner of:** table and migration counts.  
+> **See also:** [design/DATA-DESIGN.md](design/DATA-DESIGN.md) · [SEED_REFERENCE.md](SEED_REFERENCE.md) · [12-governance.md](12-governance.md)
+
 **60 tables in 6 groups.** 56 have an ORM model in `shared/models/`; the 4
 integration tables are created by migration only. Both apps read and write
 the same rows.

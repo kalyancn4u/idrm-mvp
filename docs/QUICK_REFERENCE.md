@@ -1,5 +1,9 @@
 # Quick Reference
 
+> **Scope:** one page of commands and queries for a returning developer.  
+> **Owner of:** nothing exclusive — a summary; each fact is owned by the document it comes from.  
+> **See also:** [01-getting-started.md](01-getting-started.md) · [07-operations.md](07-operations.md) · [../Makefile](../Makefile)
+
 One page. Everything a returning developer needs.
 
 ---

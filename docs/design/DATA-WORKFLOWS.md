@@ -1,5 +1,9 @@
 # IDRM — End-user workflows: the data, step by step
 
+> **Scope:** each user's tasks, step by step, with the data each step touches.  
+> **Owner of:** workflow cards W1–W27 and gaps WF1–WF3.  
+> **See also:** [DATA-DESIGN.md](DATA-DESIGN.md) · [PRIVACY-FIRST-DATA-DESIGN.md](PRIVACY-FIRST-DATA-DESIGN.md) · [../05-dashboard-guide.md](../05-dashboard-guide.md)
+
 > **Part of:** [DATA-DESIGN.md](DATA-DESIGN.md) (master), area 13 of the brief in
 > [instructions.md §2](../../instructions.md#2-the-data-design-brief).
 > Privacy rules referred to here are owned by

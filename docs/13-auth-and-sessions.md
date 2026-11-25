@@ -1,5 +1,9 @@
 # Authentication and Sessions
 
+> **Scope:** tokens, sessions, sign-in and sign-out.  
+> **Owner of:** token lifetimes and the role list.  
+> **See also:** [08-security.md](08-security.md) · [04-api-reference.md](04-api-reference.md)
+
 ## The two tokens
 
 | Token | Lifetime | Purpose |

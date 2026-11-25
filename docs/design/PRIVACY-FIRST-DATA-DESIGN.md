@@ -1,5 +1,9 @@
 # IDRM — Privacy-first data design
 
+> **Scope:** who sees which personal data and when; sensitivity tiers; retention; consent.  
+> **Owner of:** the reveal ladder and the sensitivity tiers (decided in [ADR-0015](../adr/0015-privacy-first-reveal-ladder.md)).  
+> **See also:** [DATA-DESIGN.md](DATA-DESIGN.md) · [DATA-CONFIGURATION.md](DATA-CONFIGURATION.md) · [../08-security.md](../08-security.md)
+
 > **Status:** ACCEPTED design (2026-11-24) — the owner adopted every default
 > in §16, recorded in [ADR-0015](../adr/0015-privacy-first-reveal-ladder.md).
 > **Not yet built:** the code in `idrm-mvp` still behaves as described in §12

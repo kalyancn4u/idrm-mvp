@@ -58,6 +58,11 @@ Outcome of the 2026-11 code and documentation review
 
 ### Changed
 
+- **The documentation tree is checked** (H-7). Each of the 30 leaf documents
+  starts with `Scope / Owner of / See also`, and `scripts/lint_docs.py` (in
+  `make lint` and CI) fails when `CLAUDE.md` or an index file grows past its
+  size limit, a leaf cannot be reached from an index, a header is missing,
+  or a relative link points at a file that does not exist.
 - **The console overview leads with the triage queue** (ADR-0016). The first
   card, "Open Incidents" (four states, but linked to `created` only), is now
   "Waiting for Approval": it counts requests in `created` and their critical

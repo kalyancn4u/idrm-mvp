@@ -1,5 +1,9 @@
 # Architecture Decision Records
 
+> **Scope:** what an ADR is, the list of ADRs, and the reading order.  
+> **Owner of:** the ADR index.  
+> **See also:** [ERRATA.md](ERRATA.md) · [../02-architecture.md](../02-architecture.md)
+
 Every significant architectural choice is recorded here as an ADR. The
 format follows [Michael Nygard's original proposal](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions).
 

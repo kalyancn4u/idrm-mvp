@@ -158,6 +158,7 @@ test-cov:
 lint:
 	@$(VENV_BIN)/ruff check app dashboard shared tests scripts
 	@$(PY) scripts/lint_boundaries.py
+	@$(PY) scripts/lint_docs.py
 
 fmt:
 	@$(VENV_BIN)/ruff check --fix app dashboard shared tests scripts

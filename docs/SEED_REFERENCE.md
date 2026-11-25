@@ -1,5 +1,9 @@
 # Seed Reference
 
+> **Scope:** what `make seed` creates.  
+> **Owner of:** seed contents (with `scripts/seed.py`).  
+> **See also:** [03-data-model.md](03-data-model.md) · [12-governance.md](12-governance.md) · [design/DATA-CONFIGURATION.md](design/DATA-CONFIGURATION.md) (§4, demo data)
+
 What `make seed` creates (development only — it refuses to run with
 `APP_ENV=production`; use `make seed-reference` there, which creates the
 regions and nothing else). Reference this whenever you wonder "what is this

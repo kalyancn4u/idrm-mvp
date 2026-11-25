@@ -1,5 +1,9 @@
 # Operations Runbook
 
+> **Scope:** running IDRM day to day: deployment, routine jobs, backup and restore.  
+> **Owner of:** the operations runbook (routine jobs and their commands).  
+> **See also:** [infra/INFRASTRUCTURE-MASTER-PLAN.md](infra/INFRASTRUCTURE-MASTER-PLAN.md) · [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) · [10-troubleshooting.md](10-troubleshooting.md)
+
 ## Deployment
 
 ### Development

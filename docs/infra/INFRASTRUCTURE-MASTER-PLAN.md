@@ -1,5 +1,9 @@
 # IDRM Infrastructure Master Plan
 
+> **Scope:** building or patching an IDRM server with the installer.  
+> **Owner of:** the server layout and the installer steps.  
+> **See also:** [../07-operations.md](../07-operations.md) · [../DEPLOYMENT_CHECKLIST.md](../DEPLOYMENT_CHECKLIST.md)
+
 Product requirements and functional specification for getting an IDRM server
 ready — from an empty Ubuntu machine, or as a small patch to one that is
 already running.

@@ -1,5 +1,9 @@
 # Client Examples
 
+> **Scope:** calling the API from curl, Python and JavaScript.  
+> **Owner of:** nothing exclusive — examples only; endpoints are owned by [04-api-reference.md](04-api-reference.md).  
+> **See also:** [04-api-reference.md](04-api-reference.md) · [13-auth-and-sessions.md](13-auth-and-sessions.md)
+
 Working code for the three most common integration scenarios. Every
 example has been tested against a locally running API.
 

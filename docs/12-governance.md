@@ -1,5 +1,9 @@
 # Governance — Auto-Approval and Entity Lists
 
+> **Scope:** auto-approval, policies, caps and entity lists.  
+> **Owner of:** policy rules and which conditions are enforced (with [ADR-0014](adr/0014-approval-first.md)).  
+> **See also:** [05-dashboard-guide.md](05-dashboard-guide.md) · [design/DATA-CONFIGURATION.md](design/DATA-CONFIGURATION.md) · [03-data-model.md](03-data-model.md)
+
 ## Auto-approval, in one minute
 
 Where a policy is in force, low-risk incidents are approved **by the system**

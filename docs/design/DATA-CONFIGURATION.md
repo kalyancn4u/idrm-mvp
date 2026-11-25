@@ -1,5 +1,9 @@
 # IDRM — Data and policy configuration: defaults, options, reasons
 
+> **Scope:** defaults and settings for data, privacy, files, audit and retention.  
+> **Owner of:** the explanation of each setting (names, defaults and ranges themselves live in `shared/config.py`).  
+> **See also:** [DATA-DESIGN.md](DATA-DESIGN.md) · [PRIVACY-FIRST-DATA-DESIGN.md](PRIVACY-FIRST-DATA-DESIGN.md) · [../04-api-reference.md](../04-api-reference.md)
+
 > **Part of:** [DATA-DESIGN.md](DATA-DESIGN.md) (master). Privacy rules come
 > from [ADR-0015](../adr/0015-privacy-first-reveal-ladder.md) and
 > [PRIVACY-FIRST-DATA-DESIGN.md](PRIVACY-FIRST-DATA-DESIGN.md); approval rules

@@ -1,5 +1,9 @@
 # IDRM MVP — Discrepancy Register
 
+> **Scope:** every finding of the 2026-11 review and how it was fixed.  
+> **Owner of:** the finding IDs (D-…) and their fix status.  
+> **See also:** [PENDING-TASKS.md](PENDING-TASKS.md) · [../adr/ERRATA.md](../adr/ERRATA.md)
+
 Review date: 2026-11-14. Reviewed commit: `e8cca37`.
 
 ## Fix status (updated 2026-11-14, third round)

@@ -1,5 +1,9 @@
 # IDRM workspace map, gaps and references
 
+> **Scope:** the other `~/Downloads/idrm-*` folders, which one is current, and known gaps.  
+> **Owner of:** the folder map and privacy gaps G1–G12.  
+> **See also:** [../design/DATA-DESIGN.md](../design/DATA-DESIGN.md) · [PENDING-TASKS.md](PENDING-TASKS.md)
+
 > **What this is:** a one-page map of every `~/Downloads/idrm-*` folder on this
 > machine, what each one is for, where the important documents live, and what is
 > missing or contradictory between them. Read this instead of re-scanning the

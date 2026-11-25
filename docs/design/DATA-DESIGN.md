@@ -1,5 +1,9 @@
 # IDRM — Data design (master)
 
+> **Scope:** all of IDRM's data: model, security, engineering, warehousing, quality, the SDLC, the roadmap.  
+> **Owner of:** data gaps X1–X11 and open decisions E1–E7.  
+> **See also:** [PRIVACY-FIRST-DATA-DESIGN.md](PRIVACY-FIRST-DATA-DESIGN.md) · [DATA-WORKFLOWS.md](DATA-WORKFLOWS.md) · [DATA-CONFIGURATION.md](DATA-CONFIGURATION.md)
+
 > **What this is:** the one place to understand all of IDRM's data — what it
 > is, why it is held, how it is protected, how it moves, how it is analysed,
 > and how it is handled at every stage of building and running the product,

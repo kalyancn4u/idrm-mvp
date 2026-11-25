@@ -1,5 +1,9 @@
 # Getting Started
 
+> **Scope:** installing and running IDRM on a development machine, from zero.  
+> **Owner of:** the first-run steps (install, migrate, seed, start).  
+> **See also:** [07-operations.md](07-operations.md) · [10-troubleshooting.md](10-troubleshooting.md) · [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+
 Ten minutes from zero to a running IDRM.
 
 ## 1. What you are building
