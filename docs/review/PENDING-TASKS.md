@@ -343,7 +343,7 @@ Small, independent, any order.
 | H-7 | Finish the instruction tree | `CLAUDE.md` and `docs/index/` exist. Still to do: the three-line `Scope / Owner of / See also` header on each leaf document, and a size check in `make lint` (see [INSTRUCTION-HIERARCHY.md](INSTRUCTION-HIERARCHY.md)) |
 | H-8 | Remove the duplicate old scripts outside this repository | `~/Downloads/idrm-artifacts`, `idrm-monorepo`, `idrm-scripts-monorepo`, `idrm-dashboard` on the old laptop hold 113 older shell scripts, including four copies of a setup set with passwords written in it. Keep one copy for reference |
 | H-9 | Fix one local, untracked file on the old laptop | `docs/.env.production.example` still uses `SECRET_KEY` and `SESSION_COOKIE_SECURE`; the real names start with `DASHBOARD_` |
-| H-10 | **Product question, found 2026-11-25:** the console's "Open Incidents" card counts created + approved + accepted + in progress, but its link opens the list filtered to `created` only, so the list is shorter than the number | Either relabel the card "Waiting for approval" and count only `created`, or let the incident list accept several statuses and link to all four. Recorded in `docs/05-dashboard-guide.md`. Decide which the card is for: triage (first) or overall load (second) |
+| H-10 | ✏️ **Decided and written 2026-11-25, not run** ([ADR-0016](../adr/0016-overview-card-is-the-triage-queue.md), owner: "Waiting for approval"). The console's "Open Incidents" card counted four states but linked to `created` only | Card is now **Waiting for Approval**: counts `created` only (and its critical ones), so the number and the linked list agree. `dashboard/services/kpi.py` + overview template; every name the template reads was checked to exist in the service. Verify: V-7 |
 
 ---
 
@@ -459,6 +459,17 @@ restart, and check it shortens. Also try a few real descriptions from the
 pilot region (with permission) and note any number the scrubber missed in
 DATA-CONFIGURATION.md §3.1.
 
+### [ ] V-7. Triage card on the console overview (H-10, ADR-0016)
+
+```bash
+pytest tests/dashboard/test_overview.py -v
+```
+
+Expected: both pass (the card counts only `created`; the page shows
+"Waiting for Approval" and links to `status=created`). Then by hand: sign in
+to the console as the seeded coordinator; the first card's number equals the
+number of rows on the page its link opens.
+
 ---
 
 ## Part H — Data-design items not yet scheduled
@@ -512,3 +523,4 @@ Add a line here each time a task above is finished or a fault is found.
 | 2026-11-25 | H-2 | `.gitattributes` moved from `docs/` to the root (it had protected only `docs/` since the first commit). Verified: rules apply repository-wide (`git check-attr`), no stored file changed (`git add --renormalize .`), all 272 working files now LF (`git ls-files --eol`). Two harmless false starts while refreshing the working copy (wrong column, then an interactive `rm` alias) changed nothing — confirmed by `git status` each time. |
 | 2026-11-25 | H-4 | MANIFEST rewritten from `git ls-files`: 272 files, every folder count checked by script against git (37/37), every tracked file listed (0 missing), no entry for a file that does not exist. The checker's one false alarm (an ambiguous `tests/` heading) was fixed by renaming the heading to "Top-level". |
 | 2026-11-25 | H-5 | Overview has five KPI cards (read in the template, none conditional); TUTORIAL said four and called four count lists "charts" — corrected. Checking each card's link found a real mismatch: "Open Incidents" counts four states but links to `created` only — recorded as H-10 (product question), not changed. |
+| 2026-11-25 | H-10 | Owner chose "Waiting for approval" — ADR-0016 written. KPI service and template changed; template/service names cross-checked; files compile; boundary check passes. Two `pg` tests added (`tests/dashboard/test_overview.py`) — not run (V-7). |

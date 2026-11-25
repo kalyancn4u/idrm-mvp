@@ -36,8 +36,9 @@ Email:    admin@idrm.local
 Password: Admin#2026
 ```
 
-You should land on the **Overview** page: five KPI cards (open incidents,
-auto-approved, personnel available, organizations, verified incidents), four
+You should land on the **Overview** page: five KPI cards (waiting for
+approval, auto-approved, personnel available, organizations, verified
+incidents), four
 lists of counts (incidents by status and by service, personnel status, unit
 status), and recent activity. Each card is a link to the page behind it.
 

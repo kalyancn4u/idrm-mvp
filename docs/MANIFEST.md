@@ -4,7 +4,7 @@ A complete file-by-file inventory of the IDRM MVP repository: every file git
 tracks, grouped by folder, with one line on what it is for. Use it to find a
 file, or to check that a copy of the repository is complete.
 
-**Total tracked files: 272** (`git ls-files | wc -l`, 2026-11-25).
+**Total tracked files: 274** (`git ls-files | wc -l`, 2026-11-25).
 
 Not listed, because git does not track them: `.env`, `keys/`, `backups/`,
 `.venv/`, `__pycache__/`, `.vscode/` (editor settings stay on each machine;
@@ -304,7 +304,7 @@ The server installer; explained in `docs/infra/INFRASTRUCTURE-MASTER-PLAN.md`.
 | `lib/common.sh` | Lines every target script shares |
 | `targets/ubuntu-22.04-amd64.sh`, `ubuntu-22.04-arm64.sh`, `ubuntu-24.04-amd64.sh`, `ubuntu-24.04-arm64.sh` | One file per supported OS and CPU |
 
-## `tests/` (20 files)
+## `tests/` (21 files)
 
 Tests that write rows are marked `pg` and run only on a `*_test` database
 (CLAUDE.md rule 9).
@@ -338,13 +338,14 @@ Tests that write rows are marked `pg` and run only on a `*_test` database
 | `test_incident_privacy.py` | Provider visibility through the API (`pg`) |
 | `test_dispatch.py` | Dispatch contract |
 
-### `tests/dashboard/` (3)
+### `tests/dashboard/` (4)
 
 | File | Purpose |
 |---|---|
 | `__init__.py` | Package marker |
 | `test_rbac.py` | Access control |
 | `test_bigboard.py` | BigBoard |
+| `test_overview.py` | Overview triage card (`pg`, ADR-0016) |
 
 ### `tests/integration/` (3)
 
@@ -354,7 +355,7 @@ Tests that write rows are marked `pg` and run only on a `*_test` database
 | `test_no_redis.py` | Optionality proof |
 | `test_auto_approval.py` | Governance end to end |
 
-## `docs/` (57 files)
+## `docs/` (58 files)
 
 Where to start: `CLAUDE.md` at the root sends you to one file in
 `docs/index/`, which names the one document to read.
@@ -423,7 +424,7 @@ Where to start: `CLAUDE.md` at the root sends you to one file in
 |---|---|
 | `INFRASTRUCTURE-MASTER-PLAN.md` | Server installer design and use |
 
-### `docs/adr/` (17)
+### `docs/adr/` (18)
 
 | File | Decision |
 |---|---|
@@ -444,6 +445,7 @@ Where to start: `CLAUDE.md` at the root sends you to one file in
 | `0013-jwt-two-token.md` | Two-token JWT |
 | `0014-approval-first.md` | Approval first; auto-approval is a time-boxed regional switch |
 | `0015-privacy-first-reveal-ladder.md` | Hide personal data by default, reveal by need |
+| `0016-overview-card-is-the-triage-queue.md` | The console's first card is the triage queue |
 
 ### `docs/assets/` (1)
 
@@ -458,7 +460,7 @@ Where to start: `CLAUDE.md` at the root sends you to one file in
 Check that a copy of the repository is complete:
 
 ```bash
-# Count tracked files (should print 272 for this version)
+# Count tracked files (should print 274 for this version)
 git ls-files | wc -l
 
 # Verify the build

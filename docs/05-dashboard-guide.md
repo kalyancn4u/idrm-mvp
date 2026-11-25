@@ -41,10 +41,11 @@ same "invalid credentials" error is returned regardless of reason.
 ## Overview
 
 Five KPI cards (`dashboard/templates/main/dashboard.html`); each is a link:
-- Open incidents + critical count → the incident list, `created` filter.
-  The card counts four states (created, approved, accepted, in progress) but
-  the link shows only `created` — the requests waiting for approval — so the
-  list is usually shorter than the number (PENDING-TASKS H-10)
+- **Waiting for Approval** + how many are critical → the incident list,
+  `created` filter. This is the triage queue: the requests a coordinator must
+  approve or reject next, and the card counts exactly what the link opens
+  ([ADR-0016](adr/0016-overview-card-is-the-triage-queue.md)). Approved,
+  accepted and in-progress work is in the "Incidents by status" list below
 - Auto-approved requests → policy decisions
 - Available personnel + units → personnel status
 - Organizations (verified count) → organization list

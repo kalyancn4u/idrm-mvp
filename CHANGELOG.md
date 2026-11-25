@@ -58,6 +58,10 @@ Outcome of the 2026-11 code and documentation review
 
 ### Changed
 
+- **The console overview leads with the triage queue** (ADR-0016). The first
+  card, "Open Incidents" (four states, but linked to `created` only), is now
+  "Waiting for Approval": it counts requests in `created` and their critical
+  ones, exactly what its link opens. Written, not yet run.
 - **Line endings are LF everywhere**: `.gitattributes` moved from `docs/`
   (where it protected only the documentation) to the repository root, so
   shell scripts, the Makefile and Python files are checked out with LF on

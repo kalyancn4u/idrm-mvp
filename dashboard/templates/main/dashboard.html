@@ -8,8 +8,10 @@
              badge='<span class="badge badge-warm">CONSOLE</span>') }}
 
 <div class="kpi-grid">
-  {{ kpi("Open Incidents", kpi.incidents_open, meta=kpi.incidents_critical ~ " critical",
-         tone="critical" if kpi.incidents_critical else "emerald",
+  {# Triage queue: counts exactly what the link opens (ADR-0016). #}
+  {{ kpi("Waiting for Approval", kpi.incidents_awaiting_approval,
+         meta=kpi.incidents_awaiting_critical ~ " critical",
+         tone="critical" if kpi.incidents_awaiting_critical else "emerald",
          href=url_for('incidents.list_view', status='created')) }}
   {{ kpi("Auto-approved", kpi.auto_approved, meta="via policy engine", tone="warm",
          href=url_for('policies.decisions')) }}

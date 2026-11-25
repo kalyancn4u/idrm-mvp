@@ -35,6 +35,7 @@ correction is recorded in [ERRATA.md](ERRATA.md) — read it alongside the ADRs.
 | [0013](0013-jwt-two-token.md) | Two-token JWT with server-side session verification | Accepted |
 | [0014](0014-approval-first.md) | Approval comes first; auto-approval is a coordinator's time-boxed regional switch | Accepted |
 | [0015](0015-privacy-first-reveal-ladder.md) | Privacy first: hide personal data by default, reveal it by need | Accepted |
+| [0016](0016-overview-card-is-the-triage-queue.md) | The console's first card is the triage queue ("Waiting for Approval") | Accepted |
 
 ## Reading order
 
@@ -46,7 +47,7 @@ If you are new to the project, read them in this order:
 4. **0004** — why Redis is optional
 5. **0007** — how auto-approval works, then **0014** — who may switch it on, and the default when nobody does
 6. **0015** — who may see which personal data, and when
-7. **0010**, **0011**, **0012** — the remaining subsystems
+7. **0010**, **0011**, **0012**, **0016** — the remaining subsystems
 8. **0001**, **0002**, **0003**, **0006**, **0008** — the foundations
 
 ## Adding a new ADR

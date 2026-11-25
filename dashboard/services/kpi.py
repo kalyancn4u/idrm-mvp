@@ -24,18 +24,17 @@ class KPIService:
                 stmt = stmt.where(*conditions)
             return db.execute(stmt).scalar_one()
 
-        open_states = [
-            IncidentStatus.created, IncidentStatus.approved,
-            IncidentStatus.accepted, IncidentStatus.in_progress,
-        ]
+        # The first card is the coordinator's triage queue: requests still
+        # in `created`, waiting for someone to approve or reject them
+        # (ADR-0014, ADR-0016). It counts exactly what its link opens.
+        waiting = (Incident.status == IncidentStatus.created,
+                   Incident.deleted_at.is_(None))
 
         return {
             "incidents_total": count(Incident, Incident.deleted_at.is_(None)),
-            "incidents_open": count(Incident, Incident.status.in_(open_states),
-                                    Incident.deleted_at.is_(None)),
-            "incidents_critical": count(Incident, Incident.priority == "critical",
-                                        Incident.status.in_(open_states),
-                                        Incident.deleted_at.is_(None)),
+            "incidents_awaiting_approval": count(Incident, *waiting),
+            "incidents_awaiting_critical": count(Incident, *waiting,
+                                                 Incident.priority == "critical"),
             "incidents_verified": count(Incident, Incident.status == IncidentStatus.verified,
                                         Incident.deleted_at.is_(None)),
             "auto_approved": count(Incident, Incident.auto_approved.is_(True),
