@@ -15,9 +15,10 @@ Two separate questions are answered for every call:
    | coordinator, admin                         | every request, in full                  |
    | citizen                                    | their own requests, in full             |
    | provider, not in a verified organization   | nothing (403)                           |
-   | provider in a verified organization        | approved requests coarsely (~1 km, no   |
-   |                                            | description); their org's requests in   |
-   |                                            | full; never `requester_id`              |
+   | provider in a verified organization        | approved requests coarsely (~1 km,      |
+   |                                            | scrubbed summary, no full description); |
+   |                                            | their org's requests in full; never     |
+   |                                            | `requester_id`                          |
 
    The guest `tracking_token` is a bearer secret: it appears only in the
    response that creates the request.
@@ -56,7 +57,7 @@ from shared.lifecycle import can_transition, next_status, role_allowed
 from shared.models.identity import User
 from shared.models.incident import Incident, IncidentUpdate
 from shared.notifications import incident_status_changed
-from shared.privacy import View, incident_view, may_see_requester_id, snap
+from shared.privacy import View, incident_view, may_see_requester_id, public_summary, snap
 
 router = APIRouter()
 
@@ -151,8 +152,13 @@ def _to_response(i: Incident, view: View, role: str | None) -> dict:
     values are null, and `view` / `location_precision` say which shape this is.
     COARSE snaps the location to the configured grid
     (PRIVACY_COARSE_GRID_DEGREES, ~1 km by default; `location_grid_km` says
-    how coarse) and hides the description, rating and review. `role` decides `requester_id` separately: providers
-    never get it, even in FULL, because it links one person's requests.
+    how coarse) and hides the description, rating and review. Every view gets
+    `summary`: the description with phone numbers, emails and links removed,
+    cut to PRIVACY_SUMMARY_MAX_CHARS — what a provider reads before deciding
+    to accept (privacy design §8.4).
+
+    `role` decides `requester_id` separately: providers never get it, even in
+    FULL, because it links one person's requests.
 
     The guest tracking token is never included here — only the create
     response adds it (G-1).
@@ -171,6 +177,7 @@ def _to_response(i: Incident, view: View, role: str | None) -> dict:
         "service_type": _value(i.service_type),
         "priority": _value(i.priority),
         "status": _value(i.status),
+        "summary": public_summary(i.description, s.privacy_summary_max_chars),
         "description": i.description if full else None,
         "latitude": lat,
         "longitude": lng,

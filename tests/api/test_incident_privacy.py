@@ -117,6 +117,9 @@ async def test_verified_provider_gets_coarse_open_work_and_full_own_work(client)
     card = by_id[w["open"]]                           # approved: coarse
     assert card["view"] == "coarse"
     assert card["description"] is None
+    # The summary tells the need without the phone number in the text.
+    assert "elderly woman alone" in card["summary"]
+    assert "9800000001" not in card["summary"] and "[number]" in card["summary"]
     assert card["requester_id"] is None
     assert card["latitude"] == pytest.approx(17.39)
     assert card["longitude"] == pytest.approx(78.49)

@@ -350,9 +350,16 @@ show `public_summary`, produced at submission:
 2. Truncate to ~140 characters.
 3. A coordinator may edit the summary during triage.
 
-Being skeptical: regexes miss things ("nine eight four…"). That is why the
-summary is shown only to providers who are already vetted, and why the full
-text stays behind assignment.
+Being skeptical: regexes miss things. That is why the summary is shown only
+to providers who are already vetted, and why the full text stays behind
+assignment.
+
+**Progress (2026-11-25, written, not run):** steps 1 and 2 exist as
+`scrub_text` / `public_summary` in `shared/privacy.py`, applied on the fly to
+every incident response as `summary` (length: `PRIVACY_SUMMARY_MAX_CHARS`).
+Numbers spelled out in English words are caught; names, addresses and numbers
+in Indian-language words are not (see DATA-CONFIGURATION.md §3.1). Step 3
+needs the stored column from G-4.
 
 ### 8.5 Reveal on request
 

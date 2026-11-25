@@ -12,7 +12,9 @@ from shared.privacy import (
     View,
     incident_view,
     may_see_requester_id,
+    public_summary,
     redact_audit_values,
+    scrub_text,
     snap,
 )
 
@@ -188,3 +190,59 @@ def test_operator_can_add_audit_keys_but_not_remove_built_in_ones():
         "aadhaar": REDACTED, "email": REDACTED,
     }
     assert redact_audit_values({"aadhaar": "1234"}) == {"aadhaar": "1234"}   # not added: kept
+
+
+# ---- Scrubbed summary (G-5, privacy design §8.4) -----------------------------
+@pytest.mark.parametrize("text,expected", [
+    ("Water at knee height, call 9800000001, elderly woman alone.",
+     "Water at knee height, call [number], elderly woman alone."),
+    ("Contact +91 98400 12345 or meera.iyer@example.com", "Contact [number] or [email]"),
+    ("Call 044-2434-5678 landline", "Call [number] landline"),
+    ("Aadhaar 1234 5678 9012 lost in flood", "Aadhaar [number] lost in flood"),
+    ("My number is nine eight four oh one two three four five six", "My number is [number]"),
+    ("see https://maps.example.com/x?y=1 or www.example.org", "see [link] or [link]"),
+    # Short numbers carry the need, not the person: kept.
+    ("3 people trapped on roof of flat 302, need boat",
+     "3 people trapped on roof of flat 302, need boat"),
+    ("Insulin needed for 2 diabetic patients, 70 and 82 years old",
+     "Insulin needed for 2 diabetic patients, 70 and 82 years old"),
+    # Deliberate over-hiding (6+ digits): PIN codes and dates. Safe side.
+    ("PIN 600042, Velachery", "PIN [number], Velachery"),
+    ("Flood since 25/11/2026 at 10.30", "Flood since [number] at 10.30"),
+    ("", ""),
+    (None, ""),
+])
+def test_scrub_text(text, expected):
+    assert scrub_text(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "Meera Iyer at 12 Gandhi Street needs help",        # names and addresses
+    "call nau aath chaar shunya",                       # numbers in Hindi words
+])
+def test_known_misses_are_documented(text):
+    """Patterns cannot catch everything. These pass through UNCHANGED today.
+
+    If the scrubber improves, update this test on purpose. The protection for
+    these cases is that only verified organizations see the summary at all.
+    """
+    assert scrub_text(text) == text
+
+
+def test_summary_is_scrubbed_before_it_is_cut():
+    """A number cut in half by the length limit must not leak its first half."""
+    text = "x" * 130 + " 9800000001 more words"
+    out = public_summary(text, 140)
+    assert "98000" not in out
+    assert len(out) <= 140
+
+
+def test_summary_cuts_at_a_word_and_marks_it():
+    out = public_summary("boat needed for families stranded near the old temple tank", 40)
+    assert out.endswith("…")
+    assert len(out) <= 40
+    assert not out[:-1].endswith(" ")
+
+
+def test_short_summary_is_unchanged():
+    assert public_summary("Need drinking water", 140) == "Need drinking water"

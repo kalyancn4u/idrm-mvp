@@ -20,6 +20,7 @@ def test_defaults_match_adr_0015():
     assert s.privacy_assignee_grace_hours == 72
     assert s.retention_contact_days == 30
     assert s.file_link_ttl_seconds == 300
+    assert s.privacy_summary_max_chars == 140
     assert s.privacy_k_anonymity == 5
     assert s.coarse_grid_km == 1.1
 
@@ -32,6 +33,7 @@ def test_defaults_match_adr_0015():
     ("file_link_ttl_seconds", 86400),
     ("privacy_k_anonymity", 1),                # k = 1 publishes individuals
     ("retention_contact_days", 0),
+    ("privacy_summary_max_chars", 10),
 ])
 def test_out_of_range_values_refuse_to_load(field, bad):
     with pytest.raises(ValidationError):

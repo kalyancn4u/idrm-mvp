@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     # After a request closes, how long the assigned organization keeps the
     # full view (for follow-up) before dropping to the coarse view. ADR-0015 D7.
     privacy_assignee_grace_hours: int = Field(default=72, ge=0, le=720)
+    # Longest scrubbed summary a provider sees before assignment (characters).
+    # Longer helps them judge the need; shorter leaks less of what the
+    # scrubber misses. ADR-0015, privacy design §8.4.
+    privacy_summary_max_chars: int = Field(default=140, ge=40, le=500)
     # Extra audit keys to mask, comma-separated (e.g. "aadhaar,vehicle_no").
     # Can only ADD to the built-in list in shared/privacy.py, never remove.
     audit_redact_extra_keys: str = ""

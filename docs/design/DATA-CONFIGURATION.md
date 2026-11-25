@@ -76,7 +76,7 @@ The life of one request, with every default in place:
 |---|---|---|
 | A guest submits a request | Stored with its exact point; the guest gets a tracking token **once** | — (ADR-0015, fixed) |
 | No auto-approval policy covers the region | Waits in `created`; **no provider sees it** | Policies (§4); ADR-0014 |
-| A coordinator approves | Providers in **verified** organizations see type, urgency and a location snapped to **0.01° (~1.1 km)**; no description, no requester | `PRIVACY_COARSE_GRID_DEGREES` |
+| A coordinator approves | Providers in **verified** organizations see type, urgency, a location snapped to **0.01° (~1.1 km)** and a **summary of up to 140 characters with phone numbers, emails and links removed**; not the full description, not the requester | `PRIVACY_COARSE_GRID_DEGREES`, `PRIVACY_SUMMARY_MAX_CHARS` |
 | A provider's organization accepts | That organization sees the exact point and description | — (fixed) |
 | A photo is uploaded, later opened | Download link works for **5 minutes** | `FILE_LINK_TTL_SECONDS` |
 | Something is audited | Personal fields (email, phone, description, …) stored as `"[redacted]"` | `AUDIT_REDACT_EXTRA_KEYS` can add fields |
@@ -97,6 +97,15 @@ Columns: **Default** · **Allowed** (outside this, start-up fails) ·
 |---|---|---|---|---|---|
 | `PRIVACY_COARSE_GRID_DEGREES` | `0.01` (~1.1 km) | 0.005 – 0.1 | Active | Grid that a provider's coarse location is snapped to; also the grid the nearby search measures from, so the exact point cannot be found by shrinking the radius | **Raise** (0.02–0.05) in sparse areas where one cell holds one house. **Lower** (0.005) only for dense cities where 1 km is too vague to plan — never below, it nears exact |
 | `PRIVACY_ASSIGNEE_GRACE_HOURS` | `72` | 0 – 720 | Active | After a request closes, how long the assigned organization keeps the full view for follow-up | **Lower** (24) if follow-up rarely happens. **0** = coarse as soon as it closes. Must not exceed the contact retention (§3.6) |
+
+| `PRIVACY_SUMMARY_MAX_CHARS` | `140` | 40 – 500 | Active | Longest `summary` shown in an incident response: the description with phone numbers (6+ digits, or 5+ number words in English), emails and links replaced by `[number]`, `[email]`, `[link]`, cut at a word | **Raise** (250) if providers cannot judge the need. **Lower** (80) for sensitive populations — the scrubber misses names, addresses and numbers written in Indian-language words, and a shorter summary leaks less of what it misses |
+
+*What the summary hides and misses:* it hides mobile and landline numbers,
+Aadhaar-style numbers, emails and links. It deliberately also hides PIN codes
+and dates (6+ digits — the safe side) and keeps short numbers ("3 people",
+"flat 302", ages). It **misses** names, street addresses and numbers written in
+Hindi, Telugu or other words. Only providers in verified organizations see it;
+the full text still waits for assignment.
 
 *How the grace window is measured today:* from the request's `updated_at`,
 which for a closed request is the closing step. A real `closed_at` column

@@ -361,7 +361,7 @@ Each needs `pg` tests that read like the design's §7 table; none may accept a 5
 | G-2 | ✏️ **Code written 2026-11-24, not run** (with WF3). Providers see only `approved` requests; unless their org is assigned: snapped location, no `requester_id`, no description. Only members of a **verified** organization see or claim anything (gap WF3). To prove it: run `tests/unit/test_privacy.py` and the `pg` tests in `tests/api/test_incident_privacy.py` after B-3 | G1, G3, G4, WF3 | §7, §8.3 |
 | G-3 | Strip EXIF on upload (port `idrm-artifacts/code/app/modules/files/imaging.py`) and resize (uses `IMAGE_MAX_DIMENSION`). *Half done 2026-11-25:* download links now last `FILE_LINK_TTL_SECONDS` (default 5 min) — written, not run | G6 | §8.8 |
 | G-4 | One Alembic revision: `incident_contacts`, `pii_reveals`, `consent_records`, new `incidents` columns, urban/rural marker on `regions`; move `guest_contact`, hash tokens | G5, G10 | §9 |
-| G-5 | Extend `shared/privacy.py` with `may_reveal`, the scrubber and the ~5 km rural grid (D3, setting `PRIVACY_RURAL_GRID_DEGREES` already exists). *Done 2026-11-25, not run:* the 72-h grace window (D7, `PRIVACY_ASSIGNEE_GRACE_HOURS`), measured from `updated_at` until G-4 adds `closed_at`. Still to do: `POST /incidents/{id}/reveal`; break-glass + review list in the console; admins lose default case access (D5) | G1–G5 | §8.2, §8.5, §8.6 |
+| G-5 | Extend `shared/privacy.py` with `may_reveal` and the ~5 km rural grid (D3, setting `PRIVACY_RURAL_GRID_DEGREES` already exists). *Done 2026-11-25, not run:* the 72-h grace window (D7, `PRIVACY_ASSIGNEE_GRACE_HOURS`), measured from `updated_at` until G-4 adds `closed_at`; the scrubber and the `summary` field (`public_summary`, `PRIVACY_SUMMARY_MAX_CHARS`), computed on the fly until G-4 stores an editable `public_summary`. Still to do: `POST /incidents/{id}/reveal`; break-glass + review list in the console; admins lose default case access (D5) | G1–G5 | §8.2, §8.5, §8.6 |
 | G-6 | ✏️ **Code written 2026-11-25, hand-checked, not run in the app** (with WF1). `shared.privacy.redact_audit_values` masks personal keys in every audit write (`shared/audit.py`); registration, failed console sign-in and both blocklist writers no longer pass the email / blocked value. Verify: V-3 | G7, WF1 | §8.9 |
 | G-7 | Daily retention job + `legal_hold`. Read the `RETENTION_*` settings (defaults and ranges already in `shared/config.py`, explained in DATA-CONFIGURATION.md §3.5) | G8, G11 | §8.11 |
 | G-8 | HMAC-hash `entity_lists` values and `login_attempts.email` | G9 | §8.10 |
@@ -447,6 +447,17 @@ Then by hand, against a running API:
    shows `"view": "full"`. With `PRIVACY_ASSIGNEE_GRACE_HOURS=0` and a
    restart it shows `"coarse"`.
 
+### [ ] V-6. Scrubbed summary (2026-11-25)
+
+`pytest tests/unit/test_privacy.py -k "scrub or summary or misses" -v` —
+all pass. Then raise a request whose description contains a phone number, an
+email and a link; approve it; as a seeded provider, `GET /incidents`: the
+coarse row's `summary` shows `[number]`, `[email]`, `[link]` and no original
+values, and is at most 140 characters. Set `PRIVACY_SUMMARY_MAX_CHARS=60`,
+restart, and check it shortens. Also try a few real descriptions from the
+pilot region (with permission) and note any number the scrubber missed in
+DATA-CONFIGURATION.md §3.1.
+
 ---
 
 ## Part H — Data-design items not yet scheduled
@@ -495,3 +506,4 @@ Add a line here each time a task above is finished or a fault is found.
 | 2026-11-24 | A-1 | Branch pushed to GitHub (needed `http.sslBackend=schannel` on this laptop). |
 | 2026-11-25 | G-6, WF1 | Audit redaction written (`shared.privacy.redact_audit_values`, applied in `shared/audit.py`); four call sites stop passing emails / blocked values. 39 redaction checks + the 32 ladder checks pass in plain Python 3.10; all changed files compile; no audit call passes an email, phone, description or blocked value (grep). Not run in the app — see Part V. Part V (verification list) and Part H (unscheduled data-design items) added. |
 | 2026-11-25 | Settings, G-5 (D7), G-3 (links) | Privacy, file-link, audit and retention settings added to `shared/config.py` with defaults from ADR-0015, ranges and two cross-checks; documented in `docs/design/DATA-CONFIGURATION.md` and `.env.example`. Active now: coarse grid, 72-h grace window, 5-min file links, extra audit keys. Reserved (validated, unused until built): rural grid, k-anonymity, reveal limits, all retention days. 86 privacy-function checks pass in plain Python 3.10; all changed files compile. Settings tests need pydantic — not run (V-5). |
+| 2026-11-25 | G-5 (scrubber) | `scrub_text` and `public_summary` in `shared/privacy.py`; every incident response gains a `summary` (phones, emails, links removed; `PRIVACY_SUMMARY_MAX_CHARS`, default 140), so providers can judge a need before accepting. Known misses (names, addresses, numbers in Indian-language words) are written down as tests. 108 privacy-function checks pass in plain Python 3.10 (one test text was wrong — "one two … nine" is itself a spelled number — and was fixed); all changed files compile. Not run in the app — V-6. |

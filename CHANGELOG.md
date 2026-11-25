@@ -39,6 +39,12 @@ Outcome of the 2026-11 code and documentation review
   Out-of-range or contradictory values stop start-up. Coarse incident
   responses now say `"location_precision": "approx"` with
   `location_grid_km` (was `"approx_1km"`). Hand-checked; not yet run.
+- **Providers can read what is needed before accepting** (ADR-0015, G-5).
+  Incident responses gain `summary`: the description with phone numbers,
+  emails and links replaced by `[number]`, `[email]`, `[link]`, at most
+  `PRIVACY_SUMMARY_MAX_CHARS` (140). Coarse views show it instead of nothing.
+  The scrubber misses names, addresses and numbers in Indian-language words;
+  those cases are documented and tested. Hand-checked; not yet run.
 - Sign-up accepts only the `citizen` and `provider` roles
 - The first admin password comes from `ADMIN_INITIAL_PASSWORD`; required in production
 - Both apps refuse to start in production on development defaults

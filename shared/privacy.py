@@ -9,8 +9,9 @@ Part G tasks G-1 and G-2 and workflow gap WF3:
   Anyone may sign up as a provider and is active at once, so membership of a
   verified organization is what makes a provider trusted.
 * Such a provider sees an APPROVED request only coarsely: type, urgency,
-  status, and a location snapped to a ~1 km grid. No description, no
-  requester id. (ADR-0014: nothing before approval.)
+  status, a location snapped to a ~1 km grid, and a short summary with phone
+  numbers, emails and links removed (`public_summary`). Not the full
+  description, not the requester id. (ADR-0014: nothing before approval.)
 * Once their organization is assigned, they see the request in full, except
   the requester's account id, which providers never need.
 * After the request closes, the assigned organization keeps the full view for
@@ -41,6 +42,7 @@ from __future__ import annotations
 
 import enum
 import math
+import re
 import uuid
 from collections.abc import Collection
 from datetime import datetime, timedelta
@@ -185,3 +187,67 @@ def redact_audit_values(values, extra_keys: Collection[str] = ()):
     if isinstance(values, list | tuple):
         return [redact_audit_values(v, extra_keys) for v in values]
     return values
+
+
+# ---- Scrubbed summary for the coarse view (G-5, privacy design §8.4) ---------
+#
+# People type phone numbers, emails and links into a request's description.
+# A provider who is NOT yet assigned sees only a short summary with those
+# removed — enough to judge "can my team help?", not enough to contact or
+# find the person.
+#
+# Being honest about the limits: these are patterns, so they miss things —
+# names, street addresses, numbers written in Hindi or Telugu words, numbers
+# split by words ("98 four 0…"). That is acceptable only because the summary
+# goes to providers in VERIFIED organizations, and the full text still waits
+# for assignment. Until G-4 stores a summary a coordinator can edit, it is
+# computed on the fly from the description.
+SUMMARY_MAX_CHARS = 140
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+# A run of digits with optional spaces, dots, dashes, slashes or brackets
+# between them; it counts as a number to hide when it holds 6 or more digits
+# (Indian mobile numbers have 10, landlines 6–8 plus a code, Aadhaar 12, PIN
+# codes 6). Short numbers such as "3 people" or "flat 302" are kept.
+_DIGIT_RUN = re.compile(r"\+?\d[\d\s().\-/]*\d")
+_MIN_DIGITS_TO_HIDE = 6
+# Numbers spelled out in English words: five or more in a row is a phone.
+_NUMBER_WORDS = r"(?:zero|oh|one|two|three|four|five|six|seven|eight|nine|double|triple)"
+_SPELLED = re.compile(rf"\b{_NUMBER_WORDS}(?:[\s,\-]+{_NUMBER_WORDS}){{4,}}\b", re.IGNORECASE)
+_SPACES = re.compile(r"\s+")
+
+
+def _hide_long_digit_runs(match: re.Match) -> str:
+    digits = sum(ch.isdigit() for ch in match.group(0))
+    return "[number]" if digits >= _MIN_DIGITS_TO_HIDE else match.group(0)
+
+
+def scrub_text(text: str | None) -> str:
+    """Replace emails, links and long numbers in free text with placeholders.
+
+    Order matters: emails and links first (they contain digits and dots that
+    the number rule would otherwise cut up), then numbers.
+    """
+    if not text:
+        return ""
+    out = _EMAIL.sub("[email]", text)
+    out = _URL.sub("[link]", out)
+    out = _SPELLED.sub("[number]", out)
+    out = _DIGIT_RUN.sub(_hide_long_digit_runs, out)
+    return _SPACES.sub(" ", out).strip()
+
+
+def public_summary(text: str | None, max_chars: int = SUMMARY_MAX_CHARS) -> str:
+    """A scrubbed, shortened version of a description for the coarse view.
+
+    Scrubbed BEFORE shortening, so a number cut in half by the length limit
+    cannot slip through. Cut at a word boundary and marked with "…".
+    """
+    clean = scrub_text(text)
+    if len(clean) <= max_chars:
+        return clean
+    cut = clean[: max_chars - 1]
+    if " " in cut:
+        cut = cut[: cut.rfind(" ")]
+    return cut.rstrip(" ,.;:-") + "…"
