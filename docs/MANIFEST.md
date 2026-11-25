@@ -4,7 +4,7 @@ A complete file-by-file inventory of the IDRM MVP repository: every file git
 tracks, grouped by folder, with one line on what it is for. Use it to find a
 file, or to check that a copy of the repository is complete.
 
-**Total tracked files: 276** (`git ls-files | wc -l`, 2026-11-25).
+**Total tracked files: 278** (`git ls-files | wc -l`, 2026-11-25).
 
 Not listed, because git does not track them: `.env`, `keys/`, `backups/`,
 `.venv/`, `__pycache__/`, `.vscode/` (editor settings stay on each machine;
@@ -72,7 +72,7 @@ A mirror for reading, never applied (CLAUDE.md rule 2).
 | `06_sample_data.sql` | Demo dataset |
 | `99_reset.sql` | Destructive reset |
 
-## `shared/` (41 files)
+## `shared/` (42 files)
 
 Code used by both apps. Imports neither app, nor FastAPI, nor Flask
 (enforced by `scripts/lint_boundaries.py`).
@@ -94,6 +94,7 @@ Code used by both apps. Imports neither app, nor FastAPI, nor Flask
 | `rate_limit.py` | Token bucket + Postgres fallback |
 | `lifecycle.py` | The incident state machine (the only place states change) |
 | `privacy.py` | Who sees how much of a request; snapping; summary scrubber; audit redaction (ADR-0015) |
+| `image_metadata.py` | Remove GPS, time and device data from uploaded photos (JPEG, PNG, WebP), stdlib only (G-3) |
 | `geo.py` | Read a PostGIS point back as latitude/longitude |
 | `notifications.py` | Builds in-app notification rows |
 
@@ -306,7 +307,7 @@ The server installer; explained in `docs/infra/INFRASTRUCTURE-MASTER-PLAN.md`.
 | `lib/common.sh` | Lines every target script shares |
 | `targets/ubuntu-22.04-amd64.sh`, `ubuntu-22.04-arm64.sh`, `ubuntu-24.04-amd64.sh`, `ubuntu-24.04-arm64.sh` | One file per supported OS and CPU |
 
-## `tests/` (21 files)
+## `tests/` (22 files)
 
 Tests that write rows are marked `pg` and run only on a `*_test` database
 (CLAUDE.md rule 9).
@@ -318,7 +319,7 @@ Tests that write rows are marked `pg` and run only on a `*_test` database
 | `__init__.py` | Package marker |
 | `conftest.py` | Fixtures; refuses to write to a non-test database |
 
-### `tests/unit/` (7)
+### `tests/unit/` (8)
 
 | File | Purpose |
 |---|---|
@@ -329,6 +330,7 @@ Tests that write rows are marked `pg` and run only on a `*_test` database
 | `test_entity_lists.py` | List evaluation |
 | `test_privacy.py` | Who-sees-what table, snapping, grace window, summary scrubber, audit redaction |
 | `test_config_privacy.py` | Privacy/retention settings: defaults, ranges, cross-checks |
+| `test_image_metadata.py` | Photo metadata removal: what is dropped, what is kept, what is refused |
 
 ### `tests/api/` (5)
 
@@ -462,7 +464,7 @@ Where to start: `CLAUDE.md` at the root sends you to one file in
 Check that a copy of the repository is complete:
 
 ```bash
-# Count tracked files (should print 276 for this version)
+# Count tracked files (should print 278 for this version)
 git ls-files | wc -l
 
 # Verify the build

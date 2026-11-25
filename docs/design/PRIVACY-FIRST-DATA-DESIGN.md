@@ -413,7 +413,7 @@ A guest (no account) gets a `tracking_token` to follow their request.
 
 | Control | Rule |
 |---|---|
-| Strip metadata | Re-encode every image server-side and drop EXIF (GPS, device, time). Port `files/imaging.py` from `idrm-artifacts/code` |
+| Strip metadata | Re-encode every image server-side and drop EXIF (GPS, device, time). Port `files/imaging.py` from `idrm-artifacts/code`. **Status 2026-11-25:** metadata is dropped from JPEG, PNG and WebP on upload (`shared/image_metadata.py`, standard library only: an allow-list of picture and colour blocks; only the orientation flag survives). Re-encoding and resizing still wait for an image library (G-3); PDF metadata is not touched |
 | Private bucket | Already private; keep it so |
 | Short links | Presigned URL lifetime 5 minutes (today 1 hour) |
 | Who may fetch | Same ladder as "Photos" in §7, not "uploader or staff" |

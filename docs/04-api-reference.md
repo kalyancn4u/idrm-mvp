@@ -182,6 +182,12 @@ open-ended policies need an admin. Body fields: `code`, `name`, `applies_to`,
 | POST | `/files` | user | Upload to MinIO (multipart: `file`, `purpose`, `entity_type?`, `entity_id?`) |
 | GET | `/files/{id}/download` | uploader, provider+ | Presigned URL |
 
+Accepted types: JPEG, PNG, WebP, PDF. Before a photo is stored, its hidden
+metadata (GPS position, time, phone make and serial) is removed; only the
+"rotate" flag of a JPEG is kept. Errors: 415 `unsupported_media_type`,
+413 `file_too_large`, 422 `invalid_image` (the bytes are not the declared
+image type, or the file is broken). PDFs are stored as received.
+
 ## Messages, chat, notifications
 
 | Method | Path | Auth | Purpose |

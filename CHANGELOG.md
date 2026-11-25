@@ -45,6 +45,16 @@ Outcome of the 2026-11 code and documentation review
   `PRIVACY_SUMMARY_MAX_CHARS` (140). Coarse views show it instead of nothing.
   The scrubber misses names, addresses and numbers in Indian-language words;
   those cases are documented and tested. Hand-checked; not yet run.
+- **Photos lose their hidden location data on upload** (ADR-0015, G-3).
+  Before a JPEG, PNG or WebP is stored, its metadata — GPS position, time,
+  phone make and serial, comments, XMP — is removed by keeping only the
+  picture and colour blocks (`shared/image_metadata.py`, standard library;
+  no new dependency). A JPEG keeps only its "rotate" flag so it still shows
+  the right way up; pixels are copied unchanged. A file whose bytes do not
+  match its declared type is refused with 422 `invalid_image`. Resizing and
+  re-encoding still need an image library; PDFs are stored as received.
+  Hand-checked, including a real JPEG and PNG made by Windows; not yet run
+  in the app.
 - Sign-up accepts only the `citizen` and `provider` roles
 - The first admin password comes from `ADMIN_INITIAL_PASSWORD`; required in production
 - Both apps refuse to start in production on development defaults

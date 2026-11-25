@@ -366,7 +366,7 @@ Each needs `pg` tests that read like the design's §7 table; none may accept a 5
 |---|---|---|---|
 | G-1 | ✏️ **Code written 2026-11-24, not run.** Return `tracking_token` only in the create response | G2 | §8.7 |
 | G-2 | ✏️ **Code written 2026-11-24, not run** (with WF3). Providers see only `approved` requests; unless their org is assigned: snapped location, no `requester_id`, no description. Only members of a **verified** organization see or claim anything (gap WF3). To prove it: run `tests/unit/test_privacy.py` and the `pg` tests in `tests/api/test_incident_privacy.py` after B-3 | G1, G3, G4, WF3 | §7, §8.3 |
-| G-3 | Strip EXIF on upload (port `idrm-artifacts/code/app/modules/files/imaging.py`) and resize (uses `IMAGE_MAX_DIMENSION`). *Half done 2026-11-25:* download links now last `FILE_LINK_TTL_SECONDS` (default 5 min) — written, not run | G6 | §8.8 |
+| G-3 | Strip EXIF on upload (port `idrm-artifacts/code/app/modules/files/imaging.py`) and resize (uses `IMAGE_MAX_DIMENSION`). *Mostly done 2026-11-25, not run in the app:* download links last `FILE_LINK_TTL_SECONDS` (default 5 min); **metadata is stripped** from JPEG, PNG and WebP before storage (`shared/image_metadata.py`, stdlib, no new dependency) and a file that does not match its declared type is refused with 422 `invalid_image`. Hand-checked: 18 unit checks, plus a real JPEG and PNG made by Windows — GPS, make and serial gone, orientation kept, every pixel identical. **Still open:** resize and re-encode (needs Pillow — a dependency decision), PDF metadata. Verify: V-8 | G6 | §8.8 |
 | G-4 | One Alembic revision: `incident_contacts`, `pii_reveals`, `consent_records`, new `incidents` columns, urban/rural marker on `regions`; move `guest_contact`, hash tokens | G5, G10 | §9 |
 | G-5 | Extend `shared/privacy.py` with `may_reveal` and the ~5 km rural grid (D3, setting `PRIVACY_RURAL_GRID_DEGREES` already exists). *Done 2026-11-25, not run:* the 72-h grace window (D7, `PRIVACY_ASSIGNEE_GRACE_HOURS`), measured from `updated_at` until G-4 adds `closed_at`; the scrubber and the `summary` field (`public_summary`, `PRIVACY_SUMMARY_MAX_CHARS`), computed on the fly until G-4 stores an editable `public_summary`. Still to do: `POST /incidents/{id}/reveal`; break-glass + review list in the console; admins lose default case access (D5) | G1–G5 | §8.2, §8.5, §8.6 |
 | G-6 | ✏️ **Code written 2026-11-25, hand-checked, not run in the app** (with WF1). `shared.privacy.redact_audit_values` masks personal keys in every audit write (`shared/audit.py`); registration, failed console sign-in and both blocklist writers no longer pass the email / blocked value. Verify: V-3 | G7, WF1 | §8.9 |
@@ -476,6 +476,19 @@ Expected: both pass (the card counts only `created`; the page shows
 to the console as the seeded coordinator; the first card's number equals the
 number of rows on the page its link opens.
 
+### [ ] V-8. Photo metadata removed on upload (G-3, 2026-11-25)
+
+```bash
+pytest tests/unit/test_image_metadata.py -v
+```
+
+Expected: all pass (they were run here through a stand-in for pytest, 18/18).
+Then by hand, with the API running: upload a phone photo that has a location
+(`POST /api/v1/files`), download it through the link, and check it with any
+EXIF viewer — no GPS, no make or model, picture the right way up. The audit row
+`file.uploaded` shows `metadata_bytes_removed` > 0. Upload a PNG renamed to
+`.jpg` with `image/jpeg`: expect 422 `invalid_image`, and no object in MinIO.
+
 ---
 
 ## Part H — Data-design items not yet scheduled
@@ -533,3 +546,4 @@ Add a line here each time a task above is finished or a fault is found.
 | 2026-11-25 | H-7 | `scripts/lint_docs.py` written (stdlib) and added to `make lint` and CI; Scope/Owner of/See also headers added to 30 leaves; `docs/index/DATA.md` trimmed from ~518 to under 350 tokens. **Actually run**: repository passes (exit 0); planted tree reports exactly its 4 problems (exit 1) and ignores 6 look-alikes; every "See also" link resolves. Note: the shell rejected one heredoc, so the header script was written as a file — nothing had been changed (checked with `git status`). |
 | 2026-11-25 | H-7 step 5 | `scripts/lint_facts.py` written (stdlib, reads the code with `ast`) and added to `make lint` and CI. **Actually run**: its first run on the repository found the QUICK_REFERENCE lifecycle table missing `assign` (exit 1) — fixed; both TTL tables matched. Other facts checked by hand against the code (login route, `BCRYPT_ROUNDS`, seed passwords): copies equal, kept or linked. Fixed: DIAGRAMS `assign` path, `sql/02_tables.sql` group counts (summed to 54), `05` now states the login URL it owns. New H-11 (`assign` has no endpoint). Open: endpoint list, setting names. |
 | 2026-11-25 | H-7 step 5 (setting names) | `lint_facts.py` extended: settings in `shared/config.py` ↔ `.env.example` ↔ backticked names in the docs (history files exempt; `<!-- not a setting -->` opt-out; document names skipped). **Actually run**: first run found 5 settings missing from `.env.example` and 3 doc names that are not settings (two Flask keys in `08`, one deliberate misspelling) — fixed or labelled; repository now passes. Planted tree: exactly 4 planted errors reported, all look-alikes pass, missing `.env.example` gives exit 2. Found: the 3 auto-approval cache settings are never read (H-12); `FILE_MAX_BYTES` above 10 MB would hit the database limit (now warned). |
+| 2026-11-25 | G-3 (metadata) | `shared/image_metadata.py` (stdlib) strips JPEG/PNG/WebP metadata by allow-listing picture and colour blocks; JPEG keeps a minimal orientation-only EXIF; trailing bytes dropped; wrong or broken files refused (422 `invalid_image`, before anything is stored). Wired into `POST /files`; audit row gains `metadata_bytes_removed`. **Actually run**: 18/18 unit checks (through a pytest stand-in — pytest is not installed here); with a do-nothing stripper 15 fail, the 3 that pass are the "unchanged" cases. **Real decoder**: Windows (System.Drawing) made a JPEG with GPS, make, serial and orientation 6, and a PNG with text and time chunks added; after stripping both decode, every pixel equals the original, GPS/make/serial/comment/time tags are gone, orientation 6 kept. Not run: the endpoint (V-8). Open: resize/re-encode (Pillow), PDF metadata. |

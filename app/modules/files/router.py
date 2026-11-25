@@ -1,4 +1,9 @@
-"""Files router — upload to MinIO + presigned download."""
+"""Files router — upload to MinIO + presigned download.
+
+Every uploaded photo has its hidden metadata (GPS, time, phone model)
+removed before it is stored — `shared/image_metadata.py`. PDFs are stored
+as received.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ from shared import storage
 from shared.audit import log_async
 from shared.config import get_settings
 from shared.enums import FilePurpose
+from shared.image_metadata import ImageError, strip_metadata
 from shared.models.file import File as FileRow
 
 router = APIRouter()
@@ -51,6 +57,17 @@ async def upload(
     if len(data) > settings.file_max_bytes:
         raise AppError(413, "file_too_large", "File exceeds the size limit.")
 
+    # Photos carry hidden data — GPS position, time, phone model — that the
+    # person never meant to share. Remove it before the file is stored
+    # (ADR-0015, G-3). A file that does not match its declared type, or is
+    # broken, is refused: one we cannot read is one we cannot clean.
+    received = len(data)
+    try:
+        data = strip_metadata(data, content_type)
+    except ImageError as exc:
+        raise AppError(422, "invalid_image",
+                       "The file is not a readable image of the type it claims to be.") from exc
+
     uploader = uuid.UUID(claims["sub"])
     storage.ensure_bucket()
     key = storage.build_object_key(purpose.value, file.filename or "upload.bin")
@@ -66,7 +83,8 @@ async def upload(
     await db.flush()
     await log_async(db, actor_id=uploader, action="file.uploaded",
                     resource_type="file", resource_id=row.id,
-                    new_values={"purpose": purpose.value, "size": len(data)})
+                    new_values={"purpose": purpose.value, "size": len(data),
+                                "metadata_bytes_removed": received - len(data)})
     return {"id": str(row.id), "object_key": key}
 
 
